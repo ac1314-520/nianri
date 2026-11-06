@@ -640,14 +640,22 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun copyFeedbackUrl(url: String) {
+    fun copyTextToClipboard(label: String, text: String, notice: String) {
         val clipboard = getSystemService(ClipboardManager::class.java)
         if (clipboard != null) {
-            clipboard.setPrimaryClip(ClipData.newPlainText("念日反馈链接", url))
-            showNotice("没有可用浏览器，反馈链接已复制")
+            clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+            showNotice(notice)
         } else {
-            showNotice("没有找到可用的浏览器")
+            showNotice("无法访问剪贴板")
         }
+    }
+
+    private fun copyFeedbackUrl(url: String) {
+        copyTextToClipboard(
+            "念日反馈链接",
+            url,
+            "没有可用浏览器，反馈链接已复制",
+        )
     }
 
     fun openBatteryOptimizationSettings() {

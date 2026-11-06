@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/main/release/NianRi-Android-1.2.0.apk",
-  "sha256": "c089afd77b1ba979cde36cc3f685132c7cea40cd90b4cc08d428c85066ddb059",
-  "notes": "• 设置新增「反馈与建议」，可报告问题或提功能建议\n• 反馈会自动带入版本、Android 版本和机型\n• 在线更新默认使用念日公开仓库清单\n• 更新源仍可替换或清空，自动检查默认关闭",
+  "versionCode": 4,
+  "versionName": "1.3.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/main/release/NianRi-Android-1.3.0.apk",
+  "sha256": "2d338d58f9fd3bfb331e18ddf831862de41c1574276bf570b6568cc371fc8c89",
+  "notes": "• 反馈与建议增加作者微信备注 MiManchi13l4520\n• 微信号支持点击复制\n• 也可以通过加作者微信反馈问题或建议",
   "publishedAt": "2026-11-06"
 }

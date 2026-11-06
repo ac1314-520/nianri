@@ -4,8 +4,8 @@
 
 没有广告，没有账号，没有统计 SDK。照片和纪念日默认只保存在这台手机里；只有你主动检查更新（或开启自动检查）时才会访问网络。
 
-**安装包**：[`release/NianRi-Android-1.2.0.apk`](release/NianRi-Android-1.2.0.apk)  
-**SHA-256**：[`release/SHA256-1.2.0.txt`](release/SHA256-1.2.0.txt)  
+**安装包**：[`release/NianRi-Android-1.3.0.apk`](release/NianRi-Android-1.3.0.apk)  
+**SHA-256**：[`release/SHA256-1.3.0.txt`](release/SHA256-1.3.0.txt)  
 **安装说明**：[`release/安装说明.txt`](release/安装说明.txt)  
 **GitHub**：[`ac1314-520/nianri`](https://github.com/ac1314-520/nianri)
 
@@ -30,7 +30,7 @@
 | 提醒 | 每个日子可开关提醒、提前 0–30 天；所有提醒共用一个每日检查时间 |
 | 小米 / HyperOS | 精确闹钟状态、通知权限、电池优化、自启动入口与说明；开机后恢复提醒 |
 | 在线更新 | 默认指向本仓库的公开清单；也可以换成自己的 HTTPS 地址；下载时校验 SHA-256、包名、版本号与签名后才允许安装 |
-| 反馈与建议 | 「设置 → 反馈与建议」直接打开 GitHub Issues，自动带入版本、Android 版本和机型，分别按 bug / enhancement 标记 |
+| 反馈与建议 | 「设置 → 反馈与建议」直接打开 GitHub Issues，自动带入版本、Android 版本和机型；也可以加作者微信 `MiManchi13l4520` 反馈 |
 | 隐私 | 无广告、无登录、无埋点；不集成任何第三方统计或广告 SDK |
 
 ### 适用系统
@@ -41,7 +41,7 @@
 
 ## 安装
 
-1. 把 `release/NianRi-Android-1.2.0.apk` 传到手机。
+1. 把 `release/NianRi-Android-1.3.0.apk` 传到手机。
 2. 点开安装；系统询问时允许「安装未知应用」。这是侧载应用的正常提示。
 3. 第一次保存带提醒的纪念日时，系统会询问通知权限，请选择允许。
 4. 打开「设置 → 提醒」，检查通知、精确提醒和电池优化状态。
@@ -66,8 +66,13 @@ APK 只使用以下权限：
 - 详情页：查看周年刻度、故事和提醒；点「编辑这个日子」修改。详情页右上角菜单也可以删除。
 - 提醒时间在「设置 → 提醒 → 每日检查时间」统一修改，修改后立即重新排程。
 - 「设置 → 反馈与建议」可以报告问题或提功能建议；会打开 GitHub Issue，并自动带入版本、Android 版本和机型。
+- 不方便公开反馈或没有 GitHub 账号时，也可以加作者微信 `MiManchi13l4520`；在设置里点击微信号即可复制。
 - 在线更新默认指向公开仓库的 `release/update.json`；只有手动检查或开启自动检查时才会访问。
 - 如果错过提醒：请检查通知权限、精确提醒、电池优化和自启动；在 HyperOS 上建议把念日加入后台白名单。
+
+## 联系作者
+
+除了 GitHub Issues，也可以加作者微信：**MiManchi13l4520** 反馈问题或提功能建议。添加时请备注「念日」，方便辨认。
 
 ## 在线更新
 
@@ -75,13 +80,13 @@ APK 只使用以下权限：
 
 ### 默认更新清单
 
-念日 1.2.0 已内置下面地址：
+念日 1.3.0 已内置下面地址：
 
 ```text
 https://raw.githubusercontent.com/ac1314-520/nianri/main/release/update.json
 ```
 
-如果手机当前是 1.0.0 或 1.1.0，会检测到 1.2.0；已经是 1.2.0 会提示已是最新。想换成自己的清单，进入「设置 → 在线更新 → 更新源」替换即可。
+如果手机当前是 1.0.0、1.1.0 或 1.2.0，会检测到 1.3.0；已经是 1.3.0 会提示已是最新。想换成自己的清单，进入「设置 → 在线更新 → 更新源」替换即可。
 
 ### 1. 清单格式
 
@@ -89,9 +94,9 @@ https://raw.githubusercontent.com/ac1314-520/nianri/main/release/update.json
 
 ```json
 {
-  "versionCode": 4,
-  "versionName": "1.2.1",
-  "apkUrl": "https://example.com/nianri/NianRi-Android-1.2.1.apk",
+  "versionCode": 5,
+  "versionName": "1.3.1",
+  "apkUrl": "https://example.com/nianri/NianRi-Android-1.3.1.apk",
   "sha256": "替换为新 APK 的 SHA-256",
   "notes": "• 修复了一些小问题\n• 优化了使用体验",
   "publishedAt": "2026-11-06"
@@ -109,10 +114,10 @@ https://raw.githubusercontent.com/ac1314-520/nianri/main/release/update.json
 
 ```bash
 python tools/make_update_manifest.py \
-  --apk release/NianRi-Android-1.2.1.apk \
-  --version-code 4 \
-  --version-name 1.2.1 \
-  --apk-url https://example.com/nianri/NianRi-Android-1.2.1.apk \
+  --apk release/NianRi-Android-1.3.1.apk \
+  --version-code 5 \
+  --version-name 1.3.1 \
+  --apk-url https://example.com/nianri/NianRi-Android-1.3.1.apk \
   --notes "· 一些小改进" \
   --out release/update.json
 ```
@@ -194,7 +199,7 @@ kotlin.incremental=false
 3. 用 `tools/make_update_manifest.py` 生成带有新 SHA-256 的 `update.json`；
 4. 上传新 APK 和清单。
 
-> 公开仓库不包含发布签名密钥，`keystore/` 只保留在维护者本地。仓库中的 `release/NianRi-Android-1.2.0.apk` 是已签名安装包；如果你从源码自行构建，需要使用自己的签名配置，不能覆盖官方签名的安装。
+> 公开仓库不包含发布签名密钥，`keystore/` 只保留在维护者本地。仓库中的 `release/NianRi-Android-1.3.0.apk` 是已签名安装包；如果你从源码自行构建，需要使用自己的签名配置，不能覆盖官方签名的安装。
 
 ## 数据与备份
 
@@ -230,6 +235,7 @@ nianri/
 - 12 色板选择与无照片落日画面
 - 首页主卡 / 列表卡片左滑删除；撤销恢复与照片延迟清理
 - 反馈入口打开 GitHub Issue，预填版本、Android 版本与机型
+- 反馈备注展示作者微信并支持点击复制
 - 默认更新源检查（公开 GitHub 清单）与自定义更新源
 - 本地数据持久化、编辑、删除、返回确认
 - 通知权限请求、每日闹钟到点发送通知
@@ -247,6 +253,13 @@ nianri/
 - 卡片大数字与左滑手势的设计参考了开源项目 [TickCount](https://github.com/ZZPBY/tickcount) 和 [Countdown-App](https://github.com/LaoYinBai/Countdown-App)；念日的界面和滑动组件为自绘实现
 
 ## 版本记录
+
+### 1.3.0（2026-11-06）
+
+- 「反馈与建议」增加作者微信备注：MiManchi13l4520
+- 微信备注支持点击复制，并提示微信号已复制
+- README、安装说明和 GitHub Release 同步公开微信反馈方式
+- 新增发布包 `NianRi-Android-1.3.0.apk`
 
 ### 1.2.0（2026-11-06）
 

@@ -9,6 +9,9 @@ import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -416,10 +419,41 @@ class SettingsView(
             AppColors.faint,
             AppFont.sans,
         ).apply {
-            setPadding(host.dp(16), 0, host.dp(16), host.dp(12))
+            setPadding(host.dp(16), 0, host.dp(16), host.dp(4))
             setLineSpacing(host.dpf(3f), 1f)
         })
+        card.addView(buildFeedbackContactNote())
         return card
+    }
+
+    private fun buildFeedbackContactNote(): View {
+        val note = "备注：也可以加作者微信 $WECHAT_ID 反馈；点击微信号即可复制。"
+        val start = note.indexOf(WECHAT_ID)
+        val spannable = SpannableString(note)
+        if (start >= 0) {
+            spannable.setSpan(
+                ForegroundColorSpan(AppColors.cinnabar),
+                start,
+                start + WECHAT_ID.length,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
+        return newText(host, note, 10.2f, AppColors.inkSoft, AppFont.sans).apply {
+            text = spannable
+            setPadding(host.dp(16), host.dp(2), host.dp(16), host.dp(12))
+            setLineSpacing(host.dpf(3f), 1f)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "备注：也可以加作者微信 $WECHAT_ID 反馈，点击复制微信号"
+            background = rippleOn(host, roundedDrawable(host, Color.TRANSPARENT, 12f), 0x1427231E)
+            setOnClickListener {
+                host.copyTextToClipboard(
+                    "作者微信",
+                    WECHAT_ID,
+                    "微信号已复制，可打开微信添加",
+                )
+            }
+        }
     }
 
     private fun buildFeedbackUrl(kind: FeedbackKind): String {
@@ -671,5 +705,6 @@ class SettingsView(
 
     companion object {
         private const val FEEDBACK_ISSUE_URL = "https://github.com/ac1314-520/nianri/issues/new"
+        private const val WECHAT_ID = "MiManchi13l4520"
     }
 }

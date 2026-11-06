@@ -1,8 +1,8 @@
 {
-  "versionCode": 7,
-  "versionName": "2.1.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.1.0.apk",
-  "sha256": "15bf964cdb1c9ca0a046c60178b04b0c79ad92b439f65ced0f14ec1f31ca127a",
-  "notes": "• 记账新增月账单 / 年账单、分类占比、全年柱状图和 12 个月明细\n• 扩展为 16 种支出分类、10 种收入分类，流水可编辑\n• 日记、打卡、生理期、愿望清单增加统计信息",
+  "versionCode": 8,
+  "versionName": "2.2.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.2.0.apk",
+  "sha256": "ce8f564de87a35229916ae07a4da1254efe20c50635326fde0da5d96a4f69fc7",
+  "notes": "• 日记支持月份 / 心情筛选和连续记录\n• 打卡增加近 7 天圆点和名称编辑\n• 愿望清单按在路上的 / 已实现分组，支持编辑",
   "publishedAt": "2026-11-06"
 }

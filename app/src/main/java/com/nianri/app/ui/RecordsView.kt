@@ -61,6 +61,8 @@ class RecordsView(
     private var diaryEditingId: String? = null
     private var diaryEditingDay: Long = LocalDate.now().toEpochDay()
     private var diaryMood: String? = null
+    private var diaryFilterMonth: YearMonth? = null
+    private var diaryFilterMood: String? = null
     private val diaryMoodViews = mutableListOf<Pair<TextView, MoodOption>>()
 
     private var ledgerMode = LedgerMode.MONTH
@@ -302,13 +304,46 @@ class RecordsView(
         if (diary.isEmpty()) {
             return
         }
-        addDiaryMonthlyStats(diary)
-        content.addView(sectionLabel(host, "最近"), LinearLayout.LayoutParams(
+        addDiaryFilterBar()
+        addDiaryMonthlyStats(diary, diaryFilterMonth)
+        val filtered = diary.filter { entry ->
+            val inMonth = diaryFilterMonth == null ||
+                YearMonth.from(LocalDate.ofEpochDay(entry.epochDay)) == diaryFilterMonth
+            val inMood = diaryFilterMood == null || entry.moodKey == diaryFilterMood
+            inMonth && inMood
+        }
+        val moodLabel = diaryFilterMood?.let { WorkbenchMood.option(it)?.label }
+        val filterName = when {
+            diaryFilterMonth != null && moodLabel != null -> "${yearMonthLabel(diaryFilterMonth!!)} · $moodLabel"
+            diaryFilterMonth != null -> yearMonthLabel(diaryFilterMonth!!)
+            moodLabel != null -> "全部 · $moodLabel"
+            else -> "全部日记"
+        }
+        content.addView(sectionLabel(host, "$filterName · ${filtered.size} 篇"), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = host.dp(24) })
+        if (filtered.isEmpty()) {
+            val empty = contentCard(host)
+            empty.addView(newText(host, "这个筛选下还没有日记", 17f, AppColors.ink, AppFont.serif))
+            empty.addView(newText(host, "换个心情或月份看看，也可以现在写一页。", 10.5f, AppColors.muted, AppFont.sans)
+                .apply { setPadding(0, host.dp(6), 0, 0) })
+            empty.addView(softAction(host, "看全部") {
+                diaryFilterMonth = null
+                diaryFilterMood = null
+                render(preserveScroll = false)
+            }, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                host.dp(36),
+            ).apply { topMargin = host.dp(9) })
+            content.addView(empty, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(10) })
+            return
+        }
         val list = contentCard(host, 0)
-        diary.take(30).forEachIndexed { index, entry ->
+        filtered.take(60).forEachIndexed { index, entry ->
             if (index > 0) list.addView(cardDivider(host))
             list.addView(diaryRow(entry, entry.id == diaryEditingId), LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -319,13 +354,111 @@ class RecordsView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = host.dp(10) })
+        if (filtered.size > 60) {
+            content.addView(newText(host, "仅显示最近 60 篇", 9f, AppColors.faint, AppFont.sans).apply {
+                setPadding(0, host.dp(7), 0, 0)
+            })
+        }
     }
 
-    private fun addDiaryMonthlyStats(diary: List<DiaryEntry>) {
-        val monthStart = LocalDate.now().withDayOfMonth(1).toEpochDay()
-        val monthEntries = diary.filter { it.epochDay >= monthStart }
+    private fun addDiaryFilterBar() {
+        val card = contentCard(host)
+        val monthRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        monthRow.addView(navArrow("‹", "上个月") {
+            diaryFilterMonth = (diaryFilterMonth ?: YearMonth.now()).minusMonths(1)
+            render(preserveScroll = false)
+        }, LinearLayout.LayoutParams(host.dp(32), host.dp(32)))
+        monthRow.addView(newText(
+            host,
+            diaryFilterMonth?.let { yearMonthLabel(it) } ?: "全部日记",
+            12.5f,
+            AppColors.ink,
+            AppFont.sansMedium,
+        ).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, host.dp(32), 1f))
+        monthRow.addView(navArrow("›", "下个月") {
+            diaryFilterMonth = (diaryFilterMonth ?: YearMonth.now()).plusMonths(1)
+            render(preserveScroll = false)
+        }, LinearLayout.LayoutParams(host.dp(32), host.dp(32)))
+        if (diaryFilterMonth != null || diaryFilterMood != null) {
+            monthRow.addView(softAction(host, "重置") {
+                diaryFilterMonth = null
+                diaryFilterMood = null
+                render(preserveScroll = false)
+            }, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                host.dp(32),
+            ).apply { marginStart = host.dp(5) })
+        }
+        card.addView(monthRow)
+        val moodRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, host.dp(9), 0, 0)
+        }
+        val allChip = newText(host, "全部", 9.5f,
+            if (diaryFilterMood == null) AppColors.cinnabar else AppColors.muted,
+            if (diaryFilterMood == null) AppFont.sansMedium else AppFont.sans).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            background = rippleOn(
+                host,
+                roundedDrawable(
+                    host,
+                    if (diaryFilterMood == null) AppColors.cinnabarSoft else Color.TRANSPARENT,
+                    15f,
+                    if (diaryFilterMood == null) 0f else 0.8f,
+                    if (diaryFilterMood == null) Color.TRANSPARENT else AppColors.line,
+                ),
+                0x1FB05238,
+            )
+            setOnClickListener {
+                diaryFilterMood = null
+                render(preserveScroll = false)
+            }
+        }
+        moodRow.addView(allChip, LinearLayout.LayoutParams(0, host.dp(30), 1f).apply { marginEnd = host.dp(3) })
+        WorkbenchMood.all.forEachIndexed { index, mood ->
+            val selected = diaryFilterMood == mood.key
+            val chip = newText(host, mood.label, 9.5f,
+                if (selected) mood.color else AppColors.muted,
+                if (selected) AppFont.sansMedium else AppFont.sans).apply {
+                gravity = Gravity.CENTER
+                isClickable = true
+                isFocusable = true
+                background = moodChipBackground(mood, selected)
+                setOnClickListener {
+                    diaryFilterMood = if (diaryFilterMood == mood.key) null else mood.key
+                    render(preserveScroll = false)
+                }
+            }
+            moodRow.addView(chip, LinearLayout.LayoutParams(0, host.dp(30), 1f).apply {
+                if (index < WorkbenchMood.all.lastIndex) marginEnd = host.dp(3)
+            })
+        }
+        card.addView(moodRow)
+        content.addView(card, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(12) })
+    }
+
+    private fun addDiaryMonthlyStats(diary: List<DiaryEntry>, selectedMonth: YearMonth?) {
+        val month = selectedMonth ?: YearMonth.now()
+        val monthEntries = diary.filter { YearMonth.from(LocalDate.ofEpochDay(it.epochDay)) == month }
         val days = monthEntries.map { it.epochDay }.distinct().size
-        content.addView(sectionLabel(host, "这个月"), LinearLayout.LayoutParams(
+        val daySet = diary.map { it.epochDay }.toSet()
+        var cursor = LocalDate.now().toEpochDay()
+        if (cursor !in daySet) cursor--
+        var streak = 0
+        while (cursor in daySet) {
+            streak++
+            cursor--
+        }
+        content.addView(sectionLabel(host, if (selectedMonth == null) "这个月" else yearMonthLabel(month)),
+            LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = host.dp(24) })
@@ -337,13 +470,19 @@ class RecordsView(
         head.addView(newText(host, "${monthEntries.size}", 29f, AppColors.cinnabar, AppFont.serif).apply {
             includeFontPadding = false
         })
-        head.addView(newText(host, " 篇 · 记录了 $days 天", 10.5f, AppColors.muted, AppFont.sans).apply {
+        head.addView(newText(
+            host,
+            " 篇 · 记录了 $days 天" + if (streak > 0) " · 连续 $streak 天" else "",
+            10.5f,
+            AppColors.muted,
+            AppFont.sans,
+        ).apply {
             setPadding(host.dp(7), 0, 0, host.dp(3))
         })
         card.addView(head)
         val counts = monthEntries.mapNotNull { it.moodKey }.groupingBy { it }.eachCount()
         if (counts.isEmpty()) {
-            card.addView(newText(host, "这个月还没有记录心情。", 10f, AppColors.faint, AppFont.sans).apply {
+            card.addView(newText(host, if (selectedMonth == null) "这个月还没有记录心情。" else "这个月还没有记录心情。", 10f, AppColors.faint, AppFont.sans).apply {
                 setPadding(0, host.dp(7), 0, 0)
             })
         } else {
@@ -655,7 +794,54 @@ class RecordsView(
             if (streak > 0) categoryColor(plan.category) else AppColors.faint,
             AppFont.sans,
         ).apply { setPadding(0, host.dp(3), 0, 0) })
+        val dots = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, host.dp(5), 0, 0)
+        }
+        for (offset in 6 downTo 0) {
+            val day = today - offset
+            val checked = day in plan.checkedDays
+            val dot = View(host).apply {
+                background = if (checked) {
+                    roundedDrawable(host, categoryColor(plan.category), 3f)
+                } else {
+                    roundedDrawable(host, Color.TRANSPARENT, 3f, 1f, AppColors.line)
+                }
+            }
+            dots.addView(dot, LinearLayout.LayoutParams(host.dp(6), host.dp(6)).apply {
+                if (offset > 0) marginEnd = host.dp(4)
+            })
+        }
+        labels.addView(dots)
         row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(ImageView(host).apply {
+            setImageResource(R.drawable.ic_edit)
+            setColorFilter(AppColors.faint)
+            contentDescription = "编辑这个打卡"
+            setOnClickListener {
+                showInputDialog(
+                    host,
+                    "编辑打卡",
+                    "给这个小约定换一个更顺手的名字。",
+                    plan.title,
+                    "例如：喝够八杯水",
+                ) { value ->
+                    val title = value.trim()
+                    if (title.isEmpty()) {
+                        host.showNotice("给这个打卡起个名字吧")
+                        return@showInputDialog false
+                    }
+                    WorkbenchStore.update(host) { data ->
+                        data.copy(plans = data.plans.map {
+                            if (it.id == plan.id) it.copy(title = title) else it
+                        })
+                    }
+                    host.showNotice("打卡名字改好了")
+                    render(preserveScroll = true)
+                    true
+                }
+            }
+        }, LinearLayout.LayoutParams(host.dp(17), host.dp(17)).apply { marginEnd = host.dp(8) })
         row.addView(ImageView(host).apply {
             setImageResource(R.drawable.ic_trash)
             setColorFilter(AppColors.faint)
@@ -1524,22 +1710,30 @@ class RecordsView(
         if (snapshot.wishes.isEmpty()) {
             return
         }
-        content.addView(sectionLabel(host, "愿望"), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(24) })
-        val list = contentCard(host, 0)
-        snapshot.wishes.forEachIndexed { index, wish ->
-            if (index > 0) list.addView(cardDivider(host))
-            list.addView(wishRow(wish), LinearLayout.LayoutParams(
+        val pending = snapshot.wishes.filter { !it.done }.sortedByDescending { it.createdDay }
+        val completed = snapshot.wishes.filter { it.done }.sortedByDescending { it.createdDay }
+
+        fun addWishSection(title: String, items: List<WishItem>) {
+            content.addView(sectionLabel(host, title), LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-            ))
+            ).apply { topMargin = host.dp(24) })
+            val list = contentCard(host, 0)
+            items.forEachIndexed { index, wish ->
+                if (index > 0) list.addView(cardDivider(host))
+                list.addView(wishRow(wish), LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ))
+            }
+            content.addView(list, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(10) })
         }
-        content.addView(list, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(10) })
+
+        if (pending.isNotEmpty()) addWishSection("在路上的 · ${pending.size}", pending)
+        if (completed.isNotEmpty()) addWishSection("已实现 · ${completed.size}", completed)
     }
 
     private fun wishRow(wish: WishItem): View {
@@ -1551,11 +1745,13 @@ class RecordsView(
             isFocusable = true
             background = rippleOn(host, roundedDrawable(host, Color.TRANSPARENT, 18f), 0x1427231E)
             setOnClickListener {
+                val nextDone = !wish.done
                 WorkbenchStore.update(host) { data ->
                     data.copy(wishes = data.wishes.map {
-                        if (it.id == wish.id) it.copy(done = !it.done) else it
+                        if (it.id == wish.id) it.copy(done = nextDone) else it
                     })
                 }
+                host.showNotice(if (nextDone) "愿望实现啦" else "放回在路上的")
                 render(preserveScroll = true)
             }
         }
@@ -1579,6 +1775,34 @@ class RecordsView(
             setPadding(0, host.dp(3), 0, 0)
         })
         row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(ImageView(host).apply {
+            setImageResource(R.drawable.ic_edit)
+            setColorFilter(AppColors.faint)
+            contentDescription = "编辑这个愿望"
+            setOnClickListener {
+                showInputDialog(
+                    host,
+                    "编辑愿望",
+                    "把愿望写得再具体一点，它会更有形状。",
+                    wish.title,
+                    "例如：去看一次海",
+                ) { value ->
+                    val title = value.trim()
+                    if (title.isEmpty()) {
+                        host.showNotice("先写下一个小愿望")
+                        return@showInputDialog false
+                    }
+                    WorkbenchStore.update(host) { data ->
+                        data.copy(wishes = data.wishes.map {
+                            if (it.id == wish.id) it.copy(title = title) else it
+                        })
+                    }
+                    host.showNotice("愿望改好了")
+                    render(preserveScroll = true)
+                    true
+                }
+            }
+        }, LinearLayout.LayoutParams(host.dp(17), host.dp(17)).apply { marginEnd = host.dp(8) })
         row.addView(ImageView(host).apply {
             setImageResource(R.drawable.ic_trash)
             setColorFilter(AppColors.faint)

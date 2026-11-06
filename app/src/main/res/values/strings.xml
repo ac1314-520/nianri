@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">念日</string>
+    <string name="notification_channel_name">纪念日提醒</string>
+    <string name="notification_channel_description">在你选择的时间，轻轻提醒重要的日子</string>
+    <string name="notification_channel_quiet">安静的纪念日提醒</string>
+</resources>

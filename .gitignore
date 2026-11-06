@@ -1,0 +1,24 @@
+# Android / Gradle
+.gradle/
+app/build/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+
+# 不要把发布密钥提交到公开仓库
+keystore/*.jks
+keystore/keystore.properties
+keystore/*.log
+keystore/*.out.log
+keystore/*.err.log
+
+# 测试与构建日志
+*.log
+*.compiler.options
+docs/*.xml
+
+# 系统
+.DS_Store
+Thumbs.db

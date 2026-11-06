@@ -1,0 +1,8 @@
+{
+  "versionCode": 3,
+  "versionName": "1.1.1",
+  "apkUrl": "https://example.com/nianri/NianRi-Android-1.1.1.apk",
+  "sha256": "在这里填入 64 位十六进制的 SHA-256",
+  "notes": "• 修复与优化\n• 让使用体验更清爽",
+  "publishedAt": "2026-11-05"
+}

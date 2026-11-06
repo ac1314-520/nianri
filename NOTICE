@@ -1,0 +1,16 @@
+念日 · NianRi
+Copyright (c) 2026 NianRi contributors
+
+本项目的源码以 MIT License 发布，详见 LICENSE。
+
+第三方组件：
+- AndroidX Core — Apache License 2.0
+  https://developer.android.com/jetpack/androidx
+- Android 系统组件：Activity、View、AlarmManager、Notification、java.time 等，
+  属于 Android Open Source Project，Apache License 2.0。
+
+交互设计参考（未复制源代码）：
+- TickCount — https://github.com/ZZPBY/tickcount
+- Countdown-App — https://github.com/LaoYinBai/Countdown-App
+
+本仓库不包含发布签名密钥。

@@ -35,6 +35,8 @@ class PhotoArtView @JvmOverloads constructor(
     private var radiusPx: Float = 0f
     private var scrimEnabled = true
     private var topScrimEnabled = false
+    private var fitWideImages = false
+    private var backdrop: Bitmap? = null
     private var clipPath = Path()
     private var bounds = RectF()
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -50,6 +52,8 @@ class PhotoArtView @JvmOverloads constructor(
         if (clean == imageName && (clean == null || bitmap != null)) return
         imageName = clean
         bitmap = null
+        backdrop?.recycle()
+        backdrop = null
         requestedKey = null
         loadToken++
         invalidate()
@@ -83,6 +87,16 @@ class PhotoArtView @JvmOverloads constructor(
 
     fun setTopScrimEnabled(enabled: Boolean) {
         topScrimEnabled = enabled
+        invalidate()
+    }
+
+    /**
+     * 横图完整显示，空出来的区域用同一张图的柔化背景补齐；
+     * 竖图和方图仍然铺满卡片，避免无谓的左右留白。
+     */
+    fun setFitWideImages(enabled: Boolean) {
+        if (fitWideImages == enabled) return
+        fitWideImages = enabled
         invalidate()
     }
 
@@ -142,7 +156,11 @@ class PhotoArtView @JvmOverloads constructor(
         canvas.clipPath(clipPath)
         val loaded = bitmap
         if (loaded != null && !loaded.isRecycled) {
-            drawCenterCrop(canvas, loaded)
+            if (fitWideImages && loaded.width > loaded.height * 1.12f) {
+                drawFitWithBackdrop(canvas, loaded)
+            } else {
+                drawCenterCrop(canvas, loaded)
+            }
             drawPhotoVeil(canvas)
         } else {
             drawGeneratedLandscape(canvas)
@@ -150,6 +168,49 @@ class PhotoArtView @JvmOverloads constructor(
         if (scrimEnabled) drawScrim(canvas)
         if (topScrimEnabled) drawTopScrim(canvas)
         canvas.restoreToCount(save)
+    }
+
+    private fun drawFitWithBackdrop(canvas: Canvas, image: Bitmap) {
+        val soft = backdropFor(image)
+        val bgScale = max(width / soft.width.toFloat(), height / soft.height.toFloat())
+        val bgW = soft.width * bgScale
+        val bgH = soft.height * bgScale
+        val bgLeft = (width - bgW) / 2f
+        val bgTop = (height - bgH) / 2f
+        canvas.drawBitmap(
+            soft,
+            null,
+            RectF(bgLeft, bgTop, bgLeft + bgW, bgTop + bgH),
+            bitmapPaint,
+        )
+        paint.style = Paint.Style.FILL
+        paint.shader = null
+        paint.color = Color.argb(112, 18, 14, 12)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+
+        val scale = min(width / image.width.toFloat(), height / image.height.toFloat())
+        val drawW = image.width * scale
+        val drawH = image.height * scale
+        val left = (width - drawW) / 2f
+        val top = (height - drawH) / 2f
+        canvas.drawBitmap(
+            image,
+            null,
+            RectF(left, top, left + drawW, top + drawH),
+            bitmapPaint,
+        )
+    }
+
+    private fun backdropFor(image: Bitmap): Bitmap {
+        val current = backdrop
+        if (current != null && !current.isRecycled) return current
+        val targetWidth = 36
+        val targetHeight = (targetWidth.toFloat() * image.height / image.width)
+            .toInt()
+            .coerceIn(12, 72)
+        return Bitmap.createScaledBitmap(image, targetWidth, targetHeight, true).also {
+            backdrop = it
+        }
     }
 
     private fun drawCenterCrop(canvas: Canvas, image: Bitmap) {

@@ -23,6 +23,10 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.nianri.app.R
 import com.nianri.app.update.UpdateInfo
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -157,6 +161,179 @@ private fun buttonRow(context: Context, vararg views: View): LinearLayout {
         views.forEach(::addView)
     }
 }
+
+private fun dateArrow(
+    context: Context,
+    label: String,
+    description: String,
+    sizeDp: Int,
+    onClick: () -> Unit,
+): TextView {
+    return newText(context, label, 23f, AppColors.inkSoft, AppFont.serif).apply {
+        gravity = Gravity.CENTER
+        isClickable = true
+        isFocusable = true
+        contentDescription = description
+        background = rippleOn(
+            context,
+            roundedDrawable(context, AppColors.cream, sizeDp / 2f, 0.8f, AppColors.line),
+            0x1427231E,
+        )
+        setOnClickListener { onClick() }
+        layoutParams = LinearLayout.LayoutParams(context.dp(sizeDp), context.dp(sizeDp))
+    }
+}
+
+/**
+ * 日期选择器不再依赖系统日历头部的小年份入口：
+ * 年份放在最上方，左右箭头和“上一年/下一年”内容描述都很明确。
+ */
+fun showDateStepperDialog(
+    context: Context,
+    initial: LocalDate,
+    onSelected: (LocalDate) -> Unit,
+) {
+    val minYear = 1900
+    val maxYear = LocalDate.now().year + 100
+    var year = initial.year.coerceIn(minYear, maxYear)
+    var month = initial.monthValue.coerceIn(1, 12)
+    var day = initial.dayOfMonth
+
+    fun clampDay() {
+        day = day.coerceIn(1, YearMonth.of(year, month).lengthOfMonth())
+    }
+
+    val dialog = baseDialog(context, 380)
+    val card = dialogCard(context)
+    card.addView(dialogTitle(context, "选择日期"))
+    card.addView(dialogMessage(context, "年份在最上面，点两侧箭头就能切换。"), LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+    ).apply { topMargin = context.dp(7) })
+
+    val yearLabel = newText(context, "年份", 10f, AppColors.muted, AppFont.sansMedium, 0.12f).apply {
+        setPadding(context.dp(4), context.dp(15), 0, context.dp(5))
+    }
+    card.addView(yearLabel)
+    val yearValue = newText(context, "", 30f, AppColors.ink, AppFont.serif)
+    val monthValue = newText(context, "", 17f, AppColors.ink, AppFont.sansMedium)
+    val dayValue = newText(context, "", 17f, AppColors.ink, AppFont.sansMedium)
+    val summary = newText(context, "", 11.5f, AppColors.cinnabar, AppFont.sansMedium).apply {
+        gravity = Gravity.CENTER
+        setPadding(0, context.dp(12), 0, 0)
+    }
+
+    fun updateLabels() {
+        yearValue.text = "$year 年"
+        monthValue.text = "$month 月"
+        dayValue.text = "$day 日"
+        val date = LocalDate.of(year, month, day)
+        summary.text = date.format(DateTimeFormatter.ofPattern("yyyy年M月d日 · EEEE", Locale.CHINA))
+    }
+
+    val prevYear = dateArrow(context, "‹", "上一年", 46) {
+        if (year > minYear) {
+            year--
+            clampDay()
+            updateLabels()
+        }
+    }
+    val nextYear = dateArrow(context, "›", "下一年", 46) {
+        if (year < maxYear) {
+            year++
+            clampDay()
+            updateLabels()
+        }
+    }
+    val yearRow = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(context.dp(5), context.dp(5), context.dp(5), context.dp(5))
+        background = roundedDrawable(context, AppColors.paperDeep, 18f)
+    }
+    yearRow.addView(prevYear)
+    yearRow.addView(yearValue, LinearLayout.LayoutParams(0, context.dp(52), 1f).apply {
+        gravity = Gravity.CENTER
+    })
+    yearValue.gravity = Gravity.CENTER
+    yearRow.addView(nextYear)
+    card.addView(yearRow, LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+    ))
+
+    fun adjustRow(
+        label: String,
+        value: TextView,
+        onPrev: () -> Unit,
+        onNext: () -> Unit,
+    ): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, context.dp(8), 0, 0)
+            addView(newText(context, label, 11f, AppColors.muted, AppFont.sans).apply {
+                setPadding(context.dp(4), 0, 0, 0)
+            }, LinearLayout.LayoutParams(context.dp(54), ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(dateArrow(context, "‹", "上一个$label", 34, onPrev))
+            addView(value, LinearLayout.LayoutParams(0, context.dp(34), 1f).apply {
+                gravity = Gravity.CENTER
+            })
+            value.gravity = Gravity.CENTER
+            addView(dateArrow(context, "›", "下一个$label", 34, onNext))
+        }
+    }
+
+    card.addView(adjustRow("月份", monthValue, {
+        month = if (month > 1) month - 1 else 12
+        clampDay()
+        updateLabels()
+    }, {
+        month = if (month < 12) month + 1 else 1
+        clampDay()
+        updateLabels()
+    }))
+    card.addView(adjustRow("日期", dayValue, {
+        day = if (day > 1) day - 1 else YearMonth.of(year, month).lengthOfMonth()
+        updateLabels()
+    }, {
+        val maxDay = YearMonth.of(year, month).lengthOfMonth()
+        day = if (day < maxDay) day + 1 else 1
+        updateLabels()
+    }))
+    card.addView(summary)
+
+    val actions = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.END or Gravity.CENTER_VERTICAL
+        setPadding(0, context.dp(12), 0, 0)
+    }
+    val today = textButton(context, "今天", AppColors.cinnabar).apply {
+        setOnClickListener {
+            val now = LocalDate.now()
+            year = now.year.coerceIn(minYear, maxYear)
+            month = now.monthValue
+            day = now.dayOfMonth
+            updateLabels()
+        }
+    }
+    actions.addView(today, LinearLayout.LayoutParams(0, context.dp(44), 1f))
+    val cancel = dialogButton(context, "取消", false)
+    cancel.setOnClickListener { dialog.dismiss() }
+    actions.addView(cancel)
+    val confirm = dialogButton(context, "选好了", true)
+    confirm.setOnClickListener {
+        onSelected(LocalDate.of(year, month, day))
+        dialog.dismiss()
+    }
+    actions.addView(confirm)
+    card.addView(actions)
+
+    updateLabels()
+    dialog.setContentView(card)
+    dialog.show()
+}
+
 
 fun showInfoDialog(
     context: Context,

@@ -11,7 +11,7 @@ val versionProps = Properties().apply {
 val appVersionCode = versionProps.getProperty("VERSION_CODE").toInt()
 val appVersionName = versionProps.getProperty("VERSION_NAME")
 // 默认使用公开仓库里的更新清单；本地可用 -PupdateManifestUrl=... 覆盖。
-val defaultUpdateManifest = "https://raw.githubusercontent.com/ac1314-520/nianri/main/release/update.json"
+val defaultUpdateManifest = "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/update.json"
 
 val keystorePropsFile = rootProject.file("keystore/keystore.properties")
 val keystoreProps = Properties().apply {

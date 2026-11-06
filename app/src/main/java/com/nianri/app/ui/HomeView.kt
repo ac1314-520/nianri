@@ -213,6 +213,7 @@ class HomeView(
             setCornerRadiusDp(30f)
             setAccentColors(accent.color, accent.deep)
             setTopScrimEnabled(true)
+            setFitWideImages(true)
             setImageName(event.imagePath)
         }
         card.addView(art, FrameLayout.LayoutParams(

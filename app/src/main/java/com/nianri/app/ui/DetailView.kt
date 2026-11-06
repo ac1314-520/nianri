@@ -118,6 +118,7 @@ class DetailView(
             setCornerRadiusDp(30f)
             setAccentColors(accent.color, accent.deep)
             setTopScrimEnabled(true)
+            setFitWideImages(true)
             setImageName(event.imagePath)
         }
         cover.addView(art, FrameLayout.LayoutParams(

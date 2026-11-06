@@ -395,6 +395,7 @@ class EditorView(
         photoArt = PhotoArtView(host).apply {
             setCornerRadiusDp(28f)
             setAccentColor(accentIndex)
+            setFitWideImages(true)
             setImageName(selectedPhotoName)
             setScrimEnabled(true)
         }
@@ -756,19 +757,10 @@ class EditorView(
     }
 
     private fun openDatePicker() {
-        DatePickerDialog(
-            host,
-            R.style.Theme_NianRi_Picker,
-            { _, year, month, day ->
-                selectedDate = LocalDate.of(year, month + 1, day)
-                updateDateUi()
-            },
-            selectedDate.year,
-            selectedDate.monthValue - 1,
-            selectedDate.dayOfMonth,
-        ).apply {
-            datePicker.maxDate = System.currentTimeMillis() + 100L * 365 * 24 * 60 * 60 * 1000
-        }.show()
+        showDateStepperDialog(host, selectedDate) { date ->
+            selectedDate = date
+            updateDateUi()
+        }
     }
 
     private fun updateDateUi() {

@@ -1,8 +1,8 @@
 {
-  "versionCode": 5,
-  "versionName": "2.0.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/main/release/NianRi-Android-2.0.0.apk",
-  "sha256": "1a698d5846676b57f02ad6ef78e480a370e12f176f8524cdd98663249f764497",
-  "notes": "• 新增工作台：天气、心情、每日打卡、日记\n• 新增记账、生理期记录、愿望清单\n• 生理期页附带一般生活提示和就医提醒\n• 天气使用手动城市，不申请定位权限",
+  "versionCode": 6,
+  "versionName": "2.0.1",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.0.1.apk",
+  "sha256": "0be828cc11beb96fb91eca278b9541fa60f5ebcb654378be71242e0a5f098732",
+  "notes": "• 横版照片在首页卡片、详情和编辑页完整显示\n• 日期选择的年份改为顶部大号左右切换\n• 更新源改用 refs/heads 地址，避开 raw 旧缓存",
   "publishedAt": "2026-11-06"
 }

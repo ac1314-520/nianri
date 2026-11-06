@@ -28,7 +28,27 @@ object AnniversaryStore {
     fun upsert(context: Context, anniversary: Anniversary): List<Anniversary> {
         val list = all(context).toMutableList()
         val index = list.indexOfFirst { it.id == anniversary.id }
-        if (index >= 0) list[index] = anniversary else list.add(anniversary)
+        if (index >= 0) {
+            list[index] = anniversary
+        } else {
+            val nextOrder = if (list.any { it.manualOrder != null }) {
+                (list.mapNotNull { it.manualOrder }.maxOrNull() ?: -1) + 1
+            } else {
+                null
+            }
+            list.add(anniversary.copy(manualOrder = nextOrder))
+        }
+        write(context, list)
+        cached = list
+        return list
+    }
+
+    @Synchronized
+    fun reorder(context: Context, ids: List<String>): List<Anniversary> {
+        val positions = ids.withIndex().associate { (index, id) -> id to index }
+        val list = all(context).map { event ->
+            event.copy(manualOrder = positions[event.id] ?: event.manualOrder)
+        }.toMutableList()
         write(context, list)
         cached = list
         return list

@@ -20,6 +20,8 @@ data class Anniversary(
     val accentIndex: Int = 0,
     val reminderEnabled: Boolean = true,
     val reminderAdvanceDays: Int = 0,
+    val reminderMinuteOfDay: Int? = null,
+    val manualOrder: Int? = null,
     val createdAt: Long = System.currentTimeMillis(),
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
@@ -32,6 +34,8 @@ data class Anniversary(
         put("accentIndex", accentIndex)
         put("reminderEnabled", reminderEnabled)
         put("reminderAdvanceDays", reminderAdvanceDays)
+        put("reminderMinuteOfDay", reminderMinuteOfDay ?: JSONObject.NULL)
+        put("manualOrder", manualOrder ?: JSONObject.NULL)
         put("createdAt", createdAt)
     }
 
@@ -55,6 +59,19 @@ data class Anniversary(
                     reminderEnabled = json.optBoolean("reminderEnabled", true),
                     reminderAdvanceDays = json.optInt("reminderAdvanceDays", 0)
                         .coerceIn(0, 365),
+                    reminderMinuteOfDay = if (
+                        json.has("reminderMinuteOfDay") &&
+                        !json.isNull("reminderMinuteOfDay")
+                    ) {
+                        json.optInt("reminderMinuteOfDay", 540).coerceIn(0, 1439)
+                    } else {
+                        null
+                    },
+                    manualOrder = if (json.has("manualOrder") && !json.isNull("manualOrder")) {
+                        json.optInt("manualOrder", Int.MAX_VALUE)
+                    } else {
+                        null
+                    },
                     createdAt = json.optLong("createdAt", System.currentTimeMillis()),
                 )
             } catch (_: Exception) {

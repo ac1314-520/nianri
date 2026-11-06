@@ -20,13 +20,18 @@ import com.nianri.app.util.cnAnniversary
 import com.nianri.app.util.daysBetween
 import com.nianri.app.util.nextAnnualDate
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 object ReminderEngine {
     private const val CHANNEL_ID = "anniversary_reminders"
 
     fun deliverDueReminders(context: Context) {
         val prefs = AppPreferences.get(context)
-        val today = LocalDate.now()
+        val now = ZonedDateTime.now(ZoneId.systemDefault())
+        val today = now.toLocalDate()
+        val nowTime = now.toLocalTime()
         val events = AnniversaryStore.all(context)
 
         events.forEach { event ->
@@ -35,6 +40,12 @@ object ReminderEngine {
             val occurrence = nextReminderOccurrence(event, today) ?: return@forEach
             val dueDate = occurrence.minusDays(event.reminderAdvanceDays.toLong())
             if (dueDate != today) return@forEach
+            val minutes = event.reminderMinuteOfDay ?: prefs.reminderMinutes
+            val reminderTime = LocalTime.of(
+                (minutes / 60).coerceIn(0, 23),
+                (minutes % 60).coerceIn(0, 59),
+            )
+            if (nowTime.isBefore(reminderTime)) return@forEach
 
             val aheadDays = daysBetween(today, occurrence)
             if (postNotification(context, event, occurrence, aheadDays)) {

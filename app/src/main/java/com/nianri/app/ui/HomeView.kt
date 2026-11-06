@@ -349,6 +349,11 @@ class HomeView(
             it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             host.openDetail(event)
         }
+        card.setOnLongClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            host.openSortDialog()
+            true
+        }
         addPressScale(card, 0.985f)
 
         if (display.big.all { ch -> ch.isDigit() }) {
@@ -485,8 +490,8 @@ class HomeView(
             ))
             addView(newText(
                 host,
-                "%02d".format(count),
-                10f,
+                "%02d  ·  长按排序".format(count),
+                9f,
                 AppColors.muted,
                 AppFont.sansMedium,
                 0.12f,
@@ -665,6 +670,11 @@ class HomeView(
         row.setOnClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             host.openDetail(event)
+        }
+        row.setOnLongClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            host.openSortDialog()
+            true
         }
         addPressScale(row, 0.988f)
         return row

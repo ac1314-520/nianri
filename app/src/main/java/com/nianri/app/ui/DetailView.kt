@@ -459,7 +459,7 @@ class DetailView(
         labels.addView(newText(
             host,
             if (event.reminderEnabled) {
-                "${ReminderAdvance.label(event.reminderAdvanceDays)} · 每天 ${parseReminderTime(prefs.reminderMinutes)} 检查"
+                "${ReminderAdvance.label(event.reminderAdvanceDays)} · ${parseReminderTime(event.reminderMinuteOfDay ?: prefs.reminderMinutes)} 提醒"
             } else {
                 "点按为这一天开启提醒"
             },

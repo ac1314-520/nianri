@@ -1,8 +1,8 @@
 {
-  "versionCode": 10,
-  "versionName": "2.3.1",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.3.1.apk",
-  "sha256": "fe2dc15170407bcd36fb1f671b2f3b2111cf63345ecb708afaf7fbb936a2ff9b",
-  "notes": "• 修复 2.3.0 首次打开生理期可能闪退的问题\n• 生理期日历、周期分析、建议和左滑删除保持完整\n• 2.3.1 为本次建议安装的修复版",
+  "versionCode": 11,
+  "versionName": "2.4.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.4.0.apk",
+  "sha256": "21cb0ce2f76f96ec0101c5f88f27599f6b17675049b0e043842248c682f09181",
+  "notes": "• 首页支持长按卡片调整顺序，顺序会保存\n• 每条纪念日可单独设置提醒时间（时:分）\n• 提醒改为按最近一次提醒精确调度，不再全局固定 9:00\n• 修复旧版数据兼容，旧纪念日默认使用设置里的默认提醒时间",
   "publishedAt": "2026-11-06"
 }

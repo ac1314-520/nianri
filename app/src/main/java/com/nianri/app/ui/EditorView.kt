@@ -48,6 +48,8 @@ class EditorView(
     private var accentIndex: Int = original?.accentIndex ?: 0
     private var reminderEnabled: Boolean = original?.reminderEnabled ?: true
     private var advanceDays: Int = original?.reminderAdvanceDays ?: 0
+    private var reminderMinutes: Int =
+        original?.reminderMinuteOfDay ?: AppPreferences.get(host).reminderMinutes
     private var selectedPhotoName: String? = original?.imagePath?.takeIf {
         PhotoStore.exists(host, it)
     }
@@ -636,7 +638,7 @@ class EditorView(
             setPadding(host.dp(12), 0, 0, 0)
         }
         textBox.addView(newText(host, "提醒我", 14f, AppColors.ink, AppFont.sansMedium))
-        textBox.addView(newText(host, "保存后会按每日检查时间送达", 10f, AppColors.muted, AppFont.sans).apply {
+        textBox.addView(newText(host, "保存后会按这条时间提醒", 10f, AppColors.muted, AppFont.sans).apply {
             setPadding(0, host.dp(3), 0, 0)
         })
         head.addView(textBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -661,7 +663,7 @@ class EditorView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             host.dp(52),
         ))
-        val timeRow = settingsRow("每日检查时间", parseReminderTime(AppPreferences.get(host).reminderMinutes)) {
+        val timeRow = settingsRow("提醒时间", parseReminderTime(reminderMinutes)) {
             openTimePicker()
         }
         timeValue = timeRow.second
@@ -669,7 +671,7 @@ class EditorView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             host.dp(52),
         ))
-        reminderDetail.addView(newText(host, "所有纪念日共用这个检查时间", 9.5f, AppColors.faint, AppFont.sans).apply {
+        reminderDetail.addView(newText(host, "这条纪念日单独使用这个时间", 9.5f, AppColors.faint, AppFont.sans).apply {
             setPadding(0, host.dp(1), 0, host.dp(8))
         })
         card.addView(reminderDetail)
@@ -706,7 +708,7 @@ class EditorView(
         if (!::reminderDetail.isInitialized) return
         reminderDetail.visibility = if (reminderEnabled) View.VISIBLE else View.GONE
         advancedValue.text = ReminderAdvance.label(advanceDays)
-        timeValue.text = parseReminderTime(AppPreferences.get(host).reminderMinutes)
+        timeValue.text = parseReminderTime(reminderMinutes)
         reminderHint.text = when {
             !reminderEnabled -> ""
             !ReminderEngine.notificationsAllowed(host) ->
@@ -740,18 +742,17 @@ class EditorView(
     }
 
     private fun openTimePicker() {
-        val prefs = AppPreferences.get(host)
-        val time = prefs.reminderTime
+        val hour = reminderMinutes / 60
+        val minute = reminderMinutes % 60
         TimePickerDialog(
             host,
             R.style.Theme_NianRi_Picker,
-            { _, hour, minute ->
-                prefs.setReminderTime(hour, minute)
-                ReminderScheduler.ensureScheduled(host)
+            { _, selectedHour, selectedMinute ->
+                reminderMinutes = selectedHour * 60 + selectedMinute
                 updateReminderUi()
             },
-            time.hour,
-            time.minute,
+            hour,
+            minute,
             true,
         ).show()
     }
@@ -820,6 +821,8 @@ class EditorView(
             accentIndex = accentIndex,
             reminderEnabled = reminderEnabled,
             reminderAdvanceDays = advanceDays,
+            reminderMinuteOfDay = reminderMinutes,
+            manualOrder = original?.manualOrder,
             createdAt = original?.createdAt ?: System.currentTimeMillis(),
         )
         try {
@@ -836,6 +839,7 @@ class EditorView(
         if (original != null &&
             (original.reminderEnabled != event.reminderEnabled ||
                 original.reminderAdvanceDays != event.reminderAdvanceDays ||
+                original.reminderMinuteOfDay != event.reminderMinuteOfDay ||
                 original.date != event.date)
         ) {
             AppPreferences.get(host).clearNotificationMark(event.id)
@@ -853,6 +857,7 @@ class EditorView(
                 !recurring ||
                 accentIndex != 0 ||
                 advanceDays != 0 ||
+                reminderMinutes != AppPreferences.get(host).reminderMinutes ||
                 !reminderEnabled
         }
         return titleInput.text.toString().trim() != original.title ||
@@ -862,7 +867,8 @@ class EditorView(
             selectedPhotoName != originalPhotoName ||
             accentIndex != original.accentIndex ||
             reminderEnabled != original.reminderEnabled ||
-            advanceDays != original.reminderAdvanceDays
+            advanceDays != original.reminderAdvanceDays ||
+            reminderMinutes != (original.reminderMinuteOfDay ?: AppPreferences.get(host).reminderMinutes)
     }
 
     fun abandon() {

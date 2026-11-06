@@ -23,6 +23,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.nianri.app.MainActivity
 import com.nianri.app.R
+import com.nianri.app.model.Anniversary
+import com.nianri.app.model.dateLine
 import com.nianri.app.update.UpdateInfo
 import java.time.LocalDate
 import java.time.YearMonth
@@ -950,3 +952,142 @@ fun showLedgerEditorDialog(
     dialog.show()
 }
 
+
+fun showSortDialog(
+    context: Context,
+    events: List<Anniversary>,
+    onSave: (List<String>) -> Unit,
+) {
+    if (events.size < 2) return
+    val dialog = baseDialog(context, 390)
+    val card = dialogCard(context)
+    card.addView(dialogTitle(context, "调整顺序"))
+    card.addView(
+        dialogMessage(context, "长按首页卡片可以再次打开这里。用箭头把最重要的日子放到前面，保存后会立即生效。"),
+        LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = context.dp(9) },
+    )
+
+    val ordered = events.toMutableList()
+    val rows = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+    }
+    val scroll = ScrollView(context).apply {
+        isFillViewport = false
+        overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+        addView(rows, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+    }
+    card.addView(
+        scroll,
+        LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            context.dp(minOf(events.size, 5) * 58),
+        ).apply { topMargin = context.dp(12) },
+    )
+
+    fun rebuild() {
+        rows.removeAllViews()
+        ordered.forEachIndexed { index, event ->
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(context.dp(11), context.dp(7), context.dp(7), context.dp(7))
+                background = rippleOn(
+                    context,
+                    roundedDrawable(context, AppColors.paperDeep, 16f),
+                    0x1427231E,
+                )
+            }
+            row.addView(
+                newText(context, "%02d".format(index + 1), 9.5f, AppColors.faint, AppFont.sansMedium, 0.12f),
+                LinearLayout.LayoutParams(context.dp(26), ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+            val textBox = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(context.dp(5), 0, context.dp(8), 0)
+            }
+            textBox.addView(
+                newText(context, event.title, 14f, AppColors.ink, AppFont.sansMedium).apply {
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                },
+            )
+            textBox.addView(
+                newText(context, event.dateLine(), 9.5f, AppColors.muted, AppFont.sans).apply {
+                    setPadding(0, context.dp(3), 0, 0)
+                },
+            )
+            row.addView(
+                textBox,
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
+            )
+
+            val up = newText(
+                context,
+                "↑",
+                19f,
+                if (index > 0) AppColors.inkSoft else AppColors.faint,
+                AppFont.serif,
+            ).apply {
+                gravity = Gravity.CENTER
+                isClickable = index > 0
+                isFocusable = index > 0
+                contentDescription = "上移${event.title}"
+                alpha = if (index > 0) 1f else 0.35f
+                setOnClickListener {
+                    if (index > 0) {
+                        ordered.add(index - 1, ordered.removeAt(index))
+                        rebuild()
+                    }
+                }
+            }
+            row.addView(up, LinearLayout.LayoutParams(context.dp(34), context.dp(38)))
+
+            val down = newText(
+                context,
+                "↓",
+                19f,
+                if (index < ordered.lastIndex) AppColors.inkSoft else AppColors.faint,
+                AppFont.serif,
+            ).apply {
+                gravity = Gravity.CENTER
+                isClickable = index < ordered.lastIndex
+                isFocusable = index < ordered.lastIndex
+                contentDescription = "下移${event.title}"
+                alpha = if (index < ordered.lastIndex) 1f else 0.35f
+                setOnClickListener {
+                    if (index < ordered.lastIndex) {
+                        ordered.add(index + 1, ordered.removeAt(index))
+                        rebuild()
+                    }
+                }
+            }
+            row.addView(down, LinearLayout.LayoutParams(context.dp(34), context.dp(38)))
+
+            rows.addView(
+                row,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    context.dp(52),
+                ).apply { if (index > 0) topMargin = context.dp(7) },
+            )
+        }
+    }
+    rebuild()
+
+    val cancel = dialogButton(context, "取消", false)
+    cancel.setOnClickListener { dialog.dismiss() }
+    val save = dialogButton(context, "保存顺序", true)
+    save.setOnClickListener {
+        onSave(ordered.map { it.id })
+        dialog.dismiss()
+    }
+    card.addView(buttonRow(context, cancel, save))
+    dialog.setContentView(card)
+    dialog.show()
+}

@@ -284,8 +284,8 @@ class SettingsView(
 
         timeValue = valueText()
         card.addView(settingRow(
-            "每日检查时间",
-            "所有纪念日共用这个时间",
+            "默认提醒时间",
+            "没有单独设置时间的纪念日使用",
             statusTrailing(timeValue),
         ) { openReminderTimePicker() })
         return card
@@ -638,7 +638,7 @@ class SettingsView(
                 prefs.setReminderTime(hour, minute)
                 ReminderScheduler.ensureScheduled(host)
                 refresh()
-                host.showNotice("每日提醒时间已改为 ${parseReminderTime(hour * 60 + minute)}")
+                host.showNotice("默认提醒时间已改为 ${parseReminderTime(hour * 60 + minute)}")
             },
             time.hour,
             time.minute,

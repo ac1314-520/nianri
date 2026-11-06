@@ -133,12 +133,16 @@ fun Anniversary.display(today: LocalDate = LocalDate.now()): AnniversaryDisplay 
 
 /** 首页顺序：今天、即将到来、已经过去的单次倒数日。 */
 fun List<Anniversary>.sortedForHome(today: LocalDate = LocalDate.now()): List<Anniversary> {
-    return sortedWith(
-        compareByDescending<Anniversary> { it.display(today).isToday }
-            .thenBy { it.display(today).isPast }
-            .thenBy { it.display(today).daysUntilNext }
-            .thenByDescending { it.createdAt },
-    )
+    val manual = filter { it.manualOrder != null }
+        .sortedBy { it.manualOrder ?: Int.MAX_VALUE }
+    val automatic = filter { it.manualOrder == null }
+        .sortedWith(
+            compareByDescending<Anniversary> { it.display(today).isToday }
+                .thenBy { it.display(today).isPast }
+                .thenBy { it.display(today).daysUntilNext }
+                .thenByDescending { it.createdAt },
+        )
+    return manual + automatic
 }
 
 fun List<Anniversary>.heroForHome(today: LocalDate = LocalDate.now()): Anniversary? =

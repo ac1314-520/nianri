@@ -31,6 +31,7 @@ import com.nianri.app.data.PhotoStore
 import com.nianri.app.data.WeatherManager
 import com.nianri.app.data.WeatherStore
 import com.nianri.app.model.Anniversary
+import com.nianri.app.model.sortedForHome
 import com.nianri.app.reminder.ReminderEngine
 import com.nianri.app.reminder.ReminderScheduler
 import com.nianri.app.ui.AppColors
@@ -53,6 +54,7 @@ import com.nianri.app.ui.showConfirmDialog
 import com.nianri.app.ui.showInfoDialog
 import com.nianri.app.ui.showInputDialog
 import com.nianri.app.ui.showInstallReadyDialog
+import com.nianri.app.ui.showSortDialog
 import com.nianri.app.ui.showUpdateAvailableDialog
 import com.nianri.app.update.InstallResult
 import com.nianri.app.update.UpdateCheckResult
@@ -227,6 +229,20 @@ class MainActivity : Activity() {
         editorOriginalId = null
         val home = HomeView(this, AnniversaryStore.all(this))
         swapScreen(home, Screen.HOME, animated)
+    }
+
+    fun openSortDialog() {
+        if (screen != Screen.HOME) return
+        val ordered = AnniversaryStore.all(this).sortedForHome()
+        if (ordered.size < 2) {
+            showNotice("再多写一个日子，就可以调整顺序了")
+            return
+        }
+        showSortDialog(this, ordered) { ids ->
+            AnniversaryStore.reorder(this, ids)
+            showHome(false)
+            showNotice("首页顺序已保存")
+        }
     }
 
     fun openWorkbench() {

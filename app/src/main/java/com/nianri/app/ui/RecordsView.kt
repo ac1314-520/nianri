@@ -1,0 +1,1212 @@
+package com.nianri.app.ui
+
+import android.app.DatePickerDialog
+import android.graphics.Color
+import android.graphics.Paint
+import android.text.InputType
+import android.text.TextUtils
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import com.nianri.app.MainActivity
+import com.nianri.app.R
+import com.nianri.app.data.CheckInCategory
+import com.nianri.app.data.CheckInPlan
+import com.nianri.app.data.DiaryEntry
+import com.nianri.app.data.LedgerEntry
+import com.nianri.app.data.PeriodRecord
+import com.nianri.app.data.WishItem
+import com.nianri.app.data.WorkbenchSnapshot
+import com.nianri.app.data.WorkbenchStore
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.roundToLong
+
+enum class RecordsTab(val label: String) {
+    DIARY("日记"),
+    CHECKIN("打卡"),
+    LEDGER("记账"),
+    PERIOD("生理期"),
+    WISH("愿望"),
+    ;
+
+    companion object {
+        fun fromIndex(index: Int): RecordsTab = entries.getOrElse(index) { DIARY }
+    }
+}
+
+class RecordsView(
+    private val host: MainActivity,
+    initialTab: RecordsTab,
+) : FrameLayout(host) {
+
+    private var tab = initialTab
+    private var didRender = false
+    private lateinit var content: LinearLayout
+    private lateinit var scroll: ScrollView
+    private lateinit var tabRow: LinearLayout
+    private val tabViews = mutableMapOf<RecordsTab, TextView>()
+
+    private var diaryInitialized = false
+    private var diaryEditingId: String? = null
+    private var diaryEditingDay: Long = LocalDate.now().toEpochDay()
+    private var diaryMood: String? = null
+    private val diaryMoodViews = mutableListOf<Pair<TextView, MoodOption>>()
+
+    private var ledgerIncome = false
+    private var ledgerCategory = "餐饮"
+    private lateinit var ledgerTypeExpense: TextView
+    private lateinit var ledgerTypeIncome: TextView
+    private lateinit var ledgerCategoryRow: LinearLayout
+
+    init {
+        background = android.graphics.drawable.ColorDrawable(AppColors.paper)
+        buildShell()
+        selectTab(initialTab, scrollTop = false)
+    }
+
+    private fun buildShell() {
+        val main = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
+        addView(main, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        main.addView(featureTopBar(host, "记录", { host.openWorkbench() }))
+
+        tabRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(host.contentMargin(), host.dp(3), host.contentMargin(), host.dp(7))
+        }
+        RecordsTab.entries.forEach { item ->
+            val view = newText(host, item.label, 12f, AppColors.muted, AppFont.sans).apply {
+                gravity = Gravity.CENTER
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { selectTab(item) }
+            }
+            tabViews[item] = view
+            tabRow.addView(view, LinearLayout.LayoutParams(0, host.dp(36), 1f).apply {
+                if (item != RecordsTab.WISH) marginEnd = host.dp(4)
+            })
+        }
+        main.addView(tabRow)
+
+        scroll = ScrollView(host).apply {
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isVerticalScrollBarEnabled = false
+        }
+        content = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(host.contentMargin(), host.dp(4), host.contentMargin(), host.dp(80))
+        }
+        scroll.addView(content, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+        main.addView(scroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0,
+            1f,
+        ))
+    }
+
+    private fun selectTab(next: RecordsTab, scrollTop: Boolean = true) {
+        if (tab == next && didRender) {
+            styleTabs()
+            return
+        }
+        tab = next
+        if (tab == RecordsTab.DIARY && !diaryInitialized) {
+            initializeDiary()
+        }
+        styleTabs()
+        render(preserveScroll = !scrollTop)
+        didRender = true
+    }
+
+    private fun styleTabs() {
+        tabViews.forEach { (item, view) ->
+            val selected = item == tab
+            view.setTextColor(if (selected) AppColors.cinnabar else AppColors.muted)
+            view.typeface = if (selected) AppFont.sansMedium else AppFont.sans
+            view.background = rippleOn(
+                host,
+                roundedDrawable(
+                    host,
+                    if (selected) AppColors.cinnabarSoft else Color.TRANSPARENT,
+                    18f,
+                ),
+                0x1FB05238,
+            )
+        }
+    }
+
+    private fun render(preserveScroll: Boolean = true) {
+        val snapshot = WorkbenchStore.get(host)
+        val y = if (::scroll.isInitialized) scroll.scrollY else 0
+        content.removeAllViews()
+        when (tab) {
+            RecordsTab.DIARY -> buildDiary(snapshot)
+            RecordsTab.CHECKIN -> buildCheckIn(snapshot)
+            RecordsTab.LEDGER -> buildLedger(snapshot)
+            RecordsTab.PERIOD -> buildPeriod(snapshot)
+            RecordsTab.WISH -> buildWishlist(snapshot)
+        }
+        styleTabs()
+        if (::scroll.isInitialized) {
+            scroll.post { scroll.scrollTo(0, if (preserveScroll) y else 0) }
+        }
+    }
+
+    // ---------------------------------------------------------------- diary
+
+    private fun initializeDiary() {
+        val snapshot = WorkbenchStore.get(host)
+        val today = LocalDate.now().toEpochDay()
+        val entry = snapshot.diaryOn(today)
+        diaryEditingId = entry?.id
+        diaryEditingDay = today
+        diaryMood = entry?.moodKey ?: snapshot.moodOn(today)
+        diaryInitialized = true
+    }
+
+    private fun buildDiary(snapshot: WorkbenchSnapshot) {
+        val today = LocalDate.now().toEpochDay()
+        var editing = diaryEditingId?.let { id -> snapshot.diary.firstOrNull { it.id == id } }
+        if (editing == null) {
+            diaryEditingId = null
+            if (diaryEditingDay <= 0) diaryEditingDay = today
+        }
+        if (diaryMood == null) {
+            diaryMood = editing?.moodKey ?: snapshot.moodOn(diaryEditingDay)
+        }
+        val day = editing?.epochDay ?: diaryEditingDay
+        diaryEditingDay = day
+
+        val composer = contentCard(host)
+        val head = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val heading = if (editing == null) "写下今天" else {
+            if (day == today) "今天的一页" else "编辑 ${epochDate(day, "M月d日")}"
+        }
+        head.addView(newText(host, heading, 15f, AppColors.ink, AppFont.serif),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        head.addView(newText(host, epochDate(day, "M月d日 · EEEE"), 9.5f, AppColors.muted, AppFont.sans))
+        composer.addView(head)
+        composer.addView(newText(
+            host,
+            "不必写得完整。一句话，也算把今天留住。",
+            10.5f,
+            AppColors.faint,
+            AppFont.sans,
+        ).apply { setPadding(0, host.dp(5), 0, host.dp(10)) })
+
+        val moodTitle = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, host.dp(7))
+        }
+        moodTitle.addView(newText(host, "给今天一个心情", 10.5f, AppColors.muted, AppFont.sans))
+        if (day != today) {
+            moodTitle.addView(LinearLayout(host).apply { weightSum = 1f }, LinearLayout.LayoutParams(0, 1, 1f))
+            moodTitle.addView(softAction(host, "写今天") {
+                diaryEditingId = snapshot.diaryOn(today)?.id
+                diaryEditingDay = today
+                diaryMood = snapshot.diaryOn(today)?.moodKey ?: snapshot.moodOn(today)
+                render(preserveScroll = false)
+            })
+        }
+        composer.addView(moodTitle)
+        diaryMoodViews.clear()
+        val moodRow = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
+        WorkbenchMood.all.forEachIndexed { index, mood ->
+            val selected = diaryMood == mood.key
+            val chip = newText(
+                host,
+                mood.label,
+                10f,
+                if (selected) mood.color else AppColors.muted,
+                if (selected) AppFont.sansMedium else AppFont.sans,
+            ).apply {
+                gravity = Gravity.CENTER
+                isClickable = true
+                isFocusable = true
+                background = moodChipBackground(mood, selected)
+                setOnClickListener {
+                    diaryMood = if (diaryMood == mood.key) null else mood.key
+                    WorkbenchStore.update(host) { data ->
+                        val moods = data.moods.toMutableMap()
+                        diaryMood?.let { moods[day] = it } ?: moods.remove(day)
+                        data.copy(moods = moods)
+                    }
+                    refreshDiaryMoods()
+                }
+            }
+            diaryMoodViews += chip to mood
+            moodRow.addView(chip, LinearLayout.LayoutParams(0, host.dp(32), 1f).apply {
+                if (index < WorkbenchMood.all.lastIndex) marginEnd = host.dp(4)
+            })
+        }
+        composer.addView(moodRow)
+
+        val input = textInput(host, "今天发生了什么？", multiline = true).apply {
+            setText(editing?.text.orEmpty())
+            setSelection(text.length)
+        }
+        composer.addView(input, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
+        val save = primaryAction(host, if (editing == null) "收下这一页" else "保存修改") {
+            val text = input.text.toString().trim()
+            if (text.isEmpty()) {
+                host.showNotice("写一点点，再收下这一页")
+                return@primaryAction
+            }
+            val id = diaryEditingId ?: WorkbenchStore.newId()
+            val finalMood = diaryMood
+            WorkbenchStore.update(host) { data ->
+                val notes = data.diary.filterNot { it.id == id } +
+                    DiaryEntry(id, day, text, finalMood)
+                val moods = data.moods.toMutableMap()
+                finalMood?.let { moods[day] = it } ?: moods.remove(day)
+                data.copy(
+                    diary = notes.sortedByDescending { it.epochDay },
+                    moods = moods,
+                )
+            }
+            diaryEditingId = id
+            diaryEditingDay = day
+            diaryInitialized = true
+            host.showNotice(if (editing == null) "这一页，收好了" else "这一页，改好了")
+            render(preserveScroll = false)
+        }
+        composer.addView(save, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(46),
+        ).apply { topMargin = host.dp(10) })
+        content.addView(composer, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+
+        val diary = snapshot.diary
+        if (diary.isEmpty()) {
+            return
+        }
+        content.addView(sectionLabel(host, "最近"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(24) })
+        val list = contentCard(host, 0)
+        diary.take(30).forEachIndexed { index, entry ->
+            if (index > 0) list.addView(cardDivider(host))
+            list.addView(diaryRow(entry, entry.id == diaryEditingId), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+        }
+        content.addView(list, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
+    }
+
+    private fun diaryRow(entry: DiaryEntry, editing: Boolean): View {
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(host.dp(16), host.dp(14), host.dp(16), host.dp(14))
+            isClickable = true
+            isFocusable = true
+            background = rippleOn(host, roundedDrawable(host, Color.TRANSPARENT, 18f), 0x1427231E)
+            setOnClickListener {
+                diaryEditingId = entry.id
+                diaryEditingDay = entry.epochDay
+                diaryMood = entry.moodKey
+                render(preserveScroll = false)
+            }
+        }
+        val labels = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val titleRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val isToday = entry.epochDay == LocalDate.now().toEpochDay()
+        titleRow.addView(newText(
+            host,
+            if (isToday) "今天 · ${epochDate(entry.epochDay, "M月d日")}" else epochDate(entry.epochDay, "M月d日 · EEEE"),
+            10f,
+            if (editing) AppColors.cinnabar else AppColors.muted,
+            AppFont.sansMedium,
+        ))
+        WorkbenchMood.option(entry.moodKey)?.let { mood ->
+            titleRow.addView(simpleChip(host, mood.label, moodChipColor(mood), mood.color),
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { marginStart = host.dp(7) })
+        }
+        labels.addView(titleRow)
+        labels.addView(newText(host, entry.text, 12.5f, AppColors.inkSoft, AppFont.serif).apply {
+            setPadding(0, host.dp(6), 0, 0)
+            maxLines = 4
+            ellipsize = TextUtils.TruncateAt.END
+            setLineSpacing(host.dpf(3f), 1f)
+        })
+        row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(ImageView(host).apply {
+            setImageResource(R.drawable.ic_trash)
+            setColorFilter(AppColors.faint)
+            contentDescription = "删除这篇日记"
+            setOnClickListener {
+                showConfirmDialog(
+                    host,
+                    "删除这一页？",
+                    "${epochDate(entry.epochDay, "M月d日")} 的日记会从本机删除。",
+                    "删除",
+                    "留着",
+                ) {
+                    WorkbenchStore.update(host) { data ->
+                        data.copy(diary = data.diary.filterNot { it.id == entry.id })
+                    }
+                    if (diaryEditingId == entry.id) {
+                        diaryEditingId = null
+                        diaryMood = null
+                    }
+                    render(preserveScroll = true)
+                }
+            }
+        }, LinearLayout.LayoutParams(host.dp(18), host.dp(18)).apply {
+            marginStart = host.dp(10)
+            topMargin = host.dp(2)
+        })
+        return row
+    }
+
+    private fun refreshDiaryMoods() {
+        diaryMoodViews.forEach { (view, mood) ->
+            val selected = diaryMood == mood.key
+            view.setTextColor(if (selected) mood.color else AppColors.muted)
+            view.typeface = if (selected) AppFont.sansMedium else AppFont.sans
+            view.background = moodChipBackground(mood, selected)
+        }
+    }
+
+    private fun moodChipBackground(mood: MoodOption, selected: Boolean): android.graphics.drawable.Drawable {
+        return rippleOn(
+            host,
+            roundedDrawable(
+                host,
+                if (selected) Color.argb(38, Color.red(mood.color), Color.green(mood.color), Color.blue(mood.color))
+                else Color.TRANSPARENT,
+                16f,
+                if (selected) 0f else 0.8f,
+                if (selected) Color.TRANSPARENT else AppColors.line,
+            ),
+            0x1FB05238,
+        )
+    }
+
+    private fun moodChipColor(mood: MoodOption): Int =
+        Color.argb(38, Color.red(mood.color), Color.green(mood.color), Color.blue(mood.color))
+
+    // -------------------------------------------------------------- check-in
+
+    private fun buildCheckIn(snapshot: WorkbenchSnapshot) {
+        val today = LocalDate.now().toEpochDay()
+        val plans = snapshot.plans
+        val checked = plans.count { today in it.checkedDays }
+        val summary = contentCard(host)
+        summary.addView(newText(host, "今日打卡", 10f, AppColors.muted, AppFont.sansMedium, 0.08f))
+        val countRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.BOTTOM
+            setPadding(0, host.dp(4), 0, 0)
+        }
+        countRow.addView(newText(host, "$checked", 32f, AppColors.cinnabar, AppFont.serif).apply {
+            includeFontPadding = false
+        })
+        countRow.addView(newText(host, " / ${plans.size} 个小约定", 11f, AppColors.muted, AppFont.sans).apply {
+            setPadding(host.dp(6), 0, 0, host.dp(4))
+        })
+        summary.addView(countRow)
+        summary.addView(newText(
+            host,
+            if (plans.isEmpty()) "先给今天定一个小约定，完成它，就算赢了一点点。"
+            else "每天完成一件小事，日子会慢慢长出秩序。",
+            10.5f,
+            AppColors.faint,
+            AppFont.sans,
+        ).apply { setPadding(0, host.dp(5), 0, 0) })
+
+        val addRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, host.dp(9), 0, 0)
+        }
+        CheckInCategory.entries.forEachIndexed { index, category ->
+            val chip = categoryChip(host, "＋ ${category.label}", false) {
+                showAddPlanDialog(category)
+            }
+            addRow.addView(chip, LinearLayout.LayoutParams(0, host.dp(34), 1f).apply {
+                if (index < CheckInCategory.entries.lastIndex) marginEnd = host.dp(4)
+            })
+        }
+        summary.addView(addRow)
+        content.addView(summary, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+
+        if (plans.isEmpty()) {
+            return
+        }
+
+        CheckInCategory.entries.forEach { category ->
+            val group = plans.filter { it.category == category }.sortedBy { it.createdDay }
+            if (group.isEmpty()) return@forEach
+            content.addView(sectionLabel(host, "${category.label} · ${group.size}"), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(22) })
+            val card = contentCard(host, 0)
+            group.forEachIndexed { index, plan ->
+                if (index > 0) card.addView(cardDivider(host))
+                card.addView(planRow(plan, today), LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ))
+            }
+            content.addView(card, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(10) })
+        }
+    }
+
+    private fun showAddPlanDialog(category: CheckInCategory) {
+        showInputDialog(
+            host,
+            "添加${category.label}打卡",
+            "每天完成这个小约定，慢慢把日子过成喜欢的样子。",
+            "",
+            "例如：${exampleFor(category)}",
+        ) { value ->
+            val title = value.trim()
+            if (title.isEmpty()) {
+                host.showNotice("给这个打卡起个名字吧")
+                return@showInputDialog false
+            }
+            val id = WorkbenchStore.newId()
+            WorkbenchStore.update(host) { data ->
+                data.copy(
+                    plans = data.plans + CheckInPlan(
+                        id = id,
+                        title = title,
+                        category = category,
+                        createdDay = LocalDate.now().toEpochDay(),
+                        checkedDays = emptySet(),
+                    ),
+                )
+            }
+            host.showNotice("打卡已经放进「${category.label}」")
+            render(preserveScroll = false)
+            true
+        }
+    }
+
+    private fun exampleFor(category: CheckInCategory): String = when (category) {
+        CheckInCategory.DAILY -> "喝够八杯水"
+        CheckInCategory.LOVE -> "认真抱抱对方"
+        CheckInCategory.FAN -> "给喜欢的人留一句话"
+    }
+
+    private fun planRow(plan: CheckInPlan, today: Long): View {
+        val isChecked = today in plan.checkedDays
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(host.dp(16), host.dp(12), host.dp(12), host.dp(12))
+            isClickable = true
+            isFocusable = true
+            background = rippleOn(host, roundedDrawable(host, Color.TRANSPARENT, 18f), 0x1427231E)
+            setOnClickListener {
+                WorkbenchStore.update(host) { data ->
+                    data.copy(plans = data.plans.map { current ->
+                        if (current.id != plan.id) current else current.copy(
+                            checkedDays = if (isChecked) current.checkedDays - today
+                            else current.checkedDays + today,
+                        )
+                    })
+                }
+                render(preserveScroll = true)
+            }
+        }
+        row.addView(newText(host, if (isChecked) "✓" else "", 12f, AppColors.cream, AppFont.sansMedium).apply {
+            gravity = Gravity.CENTER
+            background = if (isChecked) {
+                roundedDrawable(host, categoryColor(plan.category), 15f)
+            } else {
+                roundedDrawable(host, Color.TRANSPARENT, 15f, 1f, AppColors.line)
+            }
+        }, LinearLayout.LayoutParams(host.dp(30), host.dp(30)))
+        val labels = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(host.dp(10), 0, host.dp(8), 0)
+        }
+        labels.addView(newText(host, plan.title, 13.5f, AppColors.ink, AppFont.sans))
+        val streak = streakOf(plan, today)
+        labels.addView(newText(
+            host,
+            if (streak > 0) "连续 $streak 天" else "累计 ${plan.checkedDays.size} 天",
+            9.5f,
+            if (streak > 0) categoryColor(plan.category) else AppColors.faint,
+            AppFont.sans,
+        ).apply { setPadding(0, host.dp(3), 0, 0) })
+        row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(ImageView(host).apply {
+            setImageResource(R.drawable.ic_trash)
+            setColorFilter(AppColors.faint)
+            contentDescription = "删除这个打卡"
+            setOnClickListener {
+                showConfirmDialog(
+                    host,
+                    "删除打卡？",
+                    "「${plan.title}」和它的所有打卡记录都会从本机删除。",
+                    "删除",
+                    "留着",
+                ) {
+                    WorkbenchStore.update(host) { data ->
+                        data.copy(plans = data.plans.filterNot { it.id == plan.id })
+                    }
+                    render(preserveScroll = true)
+                }
+            }
+        }, LinearLayout.LayoutParams(host.dp(17), host.dp(17)).apply { marginEnd = host.dp(2) })
+        return row
+    }
+
+    private fun streakOf(plan: CheckInPlan, today: Long): Int {
+        var day = today
+        var count = 0
+        while (day in plan.checkedDays) {
+            count++
+            day--
+        }
+        return count
+    }
+
+    // ---------------------------------------------------------------- ledger
+
+    private fun buildLedger(snapshot: WorkbenchSnapshot) {
+        val today = LocalDate.now()
+        val monthStart = today.withDayOfMonth(1).toEpochDay()
+        val expense = snapshot.ledger.filter { !it.income && it.epochDay >= monthStart }.sumOf { it.amountCents }
+        val income = snapshot.ledger.filter { it.income && it.epochDay >= monthStart }.sumOf { it.amountCents }
+        val summary = contentCard(host)
+        summary.addView(newText(host, "本月支出", 10f, AppColors.muted, AppFont.sansMedium, 0.08f))
+        summary.addView(newText(host, formatMoney(expense), 31f, AppColors.ink, AppFont.serif).apply {
+            setPadding(0, host.dp(4), 0, 0)
+            includeFontPadding = false
+        })
+        summary.addView(newText(
+            host,
+            "收入 ${formatMoney(income)}   ·   结余 ${formatMoney(income - expense)}",
+            10.5f,
+            AppColors.muted,
+            AppFont.sans,
+        ).apply { setPadding(0, host.dp(6), 0, 0) })
+        content.addView(summary, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+
+        val form = contentCard(host)
+        form.addView(newText(host, "记一笔", 14f, AppColors.ink, AppFont.sansMedium))
+        val typeRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, host.dp(10), 0, 0)
+        }
+        ledgerTypeExpense = typePill("支出", !ledgerIncome) { setLedgerType(false) }
+        ledgerTypeIncome = typePill("收入", ledgerIncome) { setLedgerType(true) }
+        typeRow.addView(ledgerTypeExpense, LinearLayout.LayoutParams(0, host.dp(36), 1f).apply {
+            marginEnd = host.dp(6)
+        })
+        typeRow.addView(ledgerTypeIncome, LinearLayout.LayoutParams(0, host.dp(36), 1f))
+        form.addView(typeRow)
+        val amount = textInput(
+            host,
+            "金额（元）",
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL,
+        )
+        form.addView(amount, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(48),
+        ).apply { topMargin = host.dp(10) })
+        ledgerCategoryRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, host.dp(9), 0, 0)
+        }
+        form.addView(ledgerCategoryRow)
+        buildLedgerCategories()
+        val note = textInput(host, "备注（可选）")
+        form.addView(note, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(48),
+        ).apply { topMargin = host.dp(9) })
+        val save = primaryAction(host, "保存这一笔") {
+            val value = amount.text.toString().trim().replace(',', '.').toDoubleOrNull()
+            if (value == null || value <= 0) {
+                host.showNotice("先填一个大于 0 的金额")
+                return@primaryAction
+            }
+            if (value > 10_000_000) {
+                host.showNotice("金额太大了，确认一下再记")
+                return@primaryAction
+            }
+            val cents = (value * 100).roundToLong()
+            val entry = LedgerEntry(
+                id = WorkbenchStore.newId(),
+                epochDay = LocalDate.now().toEpochDay(),
+                income = ledgerIncome,
+                amountCents = cents,
+                category = ledgerCategory,
+                note = note.text.toString().trim(),
+            )
+            WorkbenchStore.update(host) { data ->
+                data.copy(ledger = (data.ledger + entry).sortedByDescending { it.epochDay })
+            }
+            host.showNotice(if (ledgerIncome) "记下一笔收入" else "记下一笔支出")
+            render(preserveScroll = false)
+        }
+        form.addView(save, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(46),
+        ).apply { topMargin = host.dp(10) })
+        content.addView(form, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(12) })
+
+        if (snapshot.ledger.isEmpty()) {
+            return
+        }
+        content.addView(sectionLabel(host, "最近"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(24) })
+        val list = contentCard(host, 0)
+        snapshot.ledger.take(40).forEachIndexed { index, entry ->
+            if (index > 0) list.addView(cardDivider(host))
+            list.addView(ledgerRow(entry), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+        }
+        content.addView(list, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
+    }
+
+    private fun typePill(label: String, selected: Boolean, onClick: () -> Unit): TextView {
+        return newText(
+            host,
+            label,
+            12f,
+            if (selected) AppColors.cinnabar else AppColors.muted,
+            if (selected) AppFont.sansMedium else AppFont.sans,
+        ).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            background = rippleOn(
+                host,
+                roundedDrawable(
+                    host,
+                    if (selected) AppColors.cinnabarSoft else Color.TRANSPARENT,
+                    16f,
+                    if (selected) 0f else 0.8f,
+                    if (selected) Color.TRANSPARENT else AppColors.line,
+                ),
+                0x1FB05238,
+            )
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun setLedgerType(income: Boolean) {
+        if (ledgerIncome == income) return
+        ledgerIncome = income
+        ledgerCategory = ledgerCategories().first()
+        refreshLedgerTypeStyles()
+        buildLedgerCategories()
+    }
+
+    private fun refreshLedgerTypeStyles() {
+        styleTypePill(ledgerTypeExpense, !ledgerIncome)
+        styleTypePill(ledgerTypeIncome, ledgerIncome)
+    }
+
+    private fun styleTypePill(view: TextView, selected: Boolean) {
+        view.setTextColor(if (selected) AppColors.cinnabar else AppColors.muted)
+        view.typeface = if (selected) AppFont.sansMedium else AppFont.sans
+        view.background = rippleOn(
+            host,
+            roundedDrawable(
+                host,
+                if (selected) AppColors.cinnabarSoft else Color.TRANSPARENT,
+                16f,
+                if (selected) 0f else 0.8f,
+                if (selected) Color.TRANSPARENT else AppColors.line,
+            ),
+            0x1FB05238,
+        )
+    }
+
+    private fun ledgerCategories(): List<String> = if (ledgerIncome) {
+        listOf("工资", "红包", "其他")
+    } else {
+        listOf("餐饮", "交通", "购物", "生活", "其他")
+    }
+
+    private fun buildLedgerCategories() {
+        if (!::ledgerCategoryRow.isInitialized) return
+        ledgerCategoryRow.removeAllViews()
+        ledgerCategories().forEachIndexed { index, category ->
+            val chip = categoryChip(host, category, category == ledgerCategory) {
+                ledgerCategory = category
+                buildLedgerCategories()
+            }
+            ledgerCategoryRow.addView(chip, LinearLayout.LayoutParams(0, host.dp(32), 1f).apply {
+                if (index < ledgerCategories().lastIndex) marginEnd = host.dp(4)
+            })
+        }
+    }
+
+    private fun ledgerRow(entry: LedgerEntry): View {
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(host.dp(16), host.dp(12), host.dp(12), host.dp(12))
+        }
+        val labels = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        labels.addView(newText(host, entry.category, 12.5f, AppColors.ink, AppFont.sansMedium))
+        val note = entry.note.ifBlank { epochDate(entry.epochDay, "M月d日") }
+        labels.addView(newText(host, note, 9.5f, AppColors.faint, AppFont.sans).apply {
+            setPadding(0, host.dp(3), 0, 0)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        })
+        row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(newText(
+            host,
+            (if (entry.income) "+" else "-") + formatMoney(entry.amountCents),
+            13f,
+            if (entry.income) AppColors.sage else AppColors.cinnabar,
+            AppFont.sansMedium,
+        ))
+        row.addView(ImageView(host).apply {
+            setImageResource(R.drawable.ic_trash)
+            setColorFilter(AppColors.faint)
+            contentDescription = "删除这笔记录"
+            setOnClickListener {
+                showConfirmDialog(
+                    host,
+                    "删除这笔记录？",
+                    "${entry.category} ${formatMoney(entry.amountCents)} 会从本机删除。",
+                    "删除",
+                    "留着",
+                ) {
+                    WorkbenchStore.update(host) { data ->
+                        data.copy(ledger = data.ledger.filterNot { it.id == entry.id })
+                    }
+                    render(preserveScroll = true)
+                }
+            }
+        }, LinearLayout.LayoutParams(host.dp(17), host.dp(17)).apply { marginStart = host.dp(10) })
+        return row
+    }
+
+    // ---------------------------------------------------------------- period
+
+    private fun buildPeriod(snapshot: WorkbenchSnapshot) {
+        val today = LocalDate.now().toEpochDay()
+        val latest = snapshot.latestPeriod()
+        val summary = contentCard(host)
+        summary.addView(newText(host, "周期记录", 10f, AppColors.muted, AppFont.sansMedium, 0.08f))
+        if (latest == null) {
+            summary.addView(newText(host, "还没有记录", 25f, AppColors.ink, AppFont.serif).apply {
+                setPadding(0, host.dp(5), 0, 0)
+            })
+            summary.addView(newText(host, "从一次开始，慢慢了解自己的周期。", 10.5f, AppColors.muted, AppFont.sans).apply {
+                setPadding(0, host.dp(6), 0, 0)
+            })
+        } else if (latest.endDay == null) {
+            val day = (today - latest.startDay + 1).coerceAtLeast(1)
+            summary.addView(newText(host, "经期第 $day 天", 27f, AppColors.cinnabar, AppFont.serif).apply {
+                setPadding(0, host.dp(5), 0, 0)
+            })
+            summary.addView(newText(host, "从 ${epochDate(latest.startDay, "M月d日")} 开始 · 周期 ${snapshot.cycleLength} 天",
+                10.5f, AppColors.muted, AppFont.sans).apply { setPadding(0, host.dp(6), 0, 0) })
+        } else {
+            val next = latest.startDay + snapshot.cycleLength
+            val days = next - today
+            val big = when {
+                days > 0 -> "预计 $days 天后"
+                days == 0L -> "预计就是今天"
+                else -> "预计时间已到"
+            }
+            summary.addView(newText(host, big, 25f, AppColors.ink, AppFont.serif).apply {
+                setPadding(0, host.dp(5), 0, 0)
+            })
+            summary.addView(newText(host, "上次 ${epochDate(latest.startDay, "M月d日")} 开始 · 周期 ${snapshot.cycleLength} 天",
+                10.5f, AppColors.muted, AppFont.sans).apply { setPadding(0, host.dp(6), 0, 0) })
+        }
+        val cycleRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, host.dp(10), 0, 0)
+        }
+        cycleRow.addView(newText(host, "周期长度 ${snapshot.cycleLength} 天", 10.5f, AppColors.muted, AppFont.sans),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        cycleRow.addView(softAction(host, "修改") { editCycleLength(snapshot.cycleLength) })
+        summary.addView(cycleRow)
+        val actions = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, host.dp(5), 0, 0)
+        }
+        actions.addView(primaryAction(host, if (latest?.endDay == null) "记录新的开始" else "记录开始") {
+            pickPeriodStart()
+        }, LinearLayout.LayoutParams(0, host.dp(44), 1f))
+        actions.addView(secondaryAction(host, "今天结束", enabled = latest != null && latest.endDay == null) {
+            endPeriod()
+        }, LinearLayout.LayoutParams(0, host.dp(44), 1f).apply { marginStart = host.dp(8) })
+        summary.addView(actions)
+        content.addView(summary, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+
+        content.addView(sectionLabel(host, "这几天，可以对自己好一点"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(24) })
+        val tips = contentCard(host)
+        tips.addView(newText(
+            host,
+            "· 热敷小腹，或洗个热水澡，让身体慢慢放松。\n" +
+                "· 轻走、拉伸都可以；累了就休息，不必硬撑。\n" +
+                "· 多喝水，吃点含铁食物：瘦肉、豆类、深绿色蔬菜。\n" +
+                "· 疼痛可按说明书使用止痛药；有哮喘、胃/肝肾问题或正在服其他药，先咨询医生或药师；16 岁以下不要用阿司匹林。\n" +
+                "· 如果疼痛影响日常生活、出血量突然很大（例如每小时湿透一片）、经期超过 7 天，或伴发热、晕厥，请及时就医。\n" +
+                "· 记录症状和周期，就诊时更有帮助。",
+            10.8f,
+            AppColors.inkSoft,
+            AppFont.sans,
+        ).apply {
+            setLineSpacing(host.dpf(4.5f), 1f)
+        })
+        tips.addView(newText(
+            host,
+            "以上是一般生活建议，不替代医生诊断，也不用于避孕。参考 NHS 与 ACOG 公开资料。",
+            9f,
+            AppColors.faint,
+            AppFont.sans,
+        ).apply { setPadding(0, host.dp(10), 0, 0) })
+        content.addView(tips, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
+
+        content.addView(sectionLabel(host, "最近记录"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(24) })
+        if (snapshot.periods.isEmpty()) {
+            return
+        }
+        val history = contentCard(host, 0)
+        snapshot.periods.take(8).forEachIndexed { index, period ->
+            if (index > 0) history.addView(cardDivider(host))
+            history.addView(periodRow(period), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+        }
+        content.addView(history, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
+    }
+
+    private fun secondaryAction(
+        host: MainActivity,
+        label: String,
+        enabled: Boolean = true,
+        onClick: () -> Unit,
+    ): TextView {
+        return newText(host, label, 13f, if (enabled) AppColors.inkSoft else AppColors.faint, AppFont.sansMedium).apply {
+            gravity = Gravity.CENTER
+            isEnabled = enabled
+            isClickable = enabled
+            isFocusable = enabled
+            alpha = if (enabled) 1f else 0.55f
+            background = rippleOn(
+                host,
+                roundedDrawable(host, Color.TRANSPARENT, 16f, 1f, AppColors.line),
+                0x1427231E,
+            )
+            setOnClickListener { if (enabled) onClick() }
+        }
+    }
+
+    private fun pickPeriodStart() {
+        val now = LocalDate.now()
+        val picker = DatePickerDialog(
+            host,
+            R.style.Theme_NianRi_Picker,
+            { _, year, month, day ->
+                val start = LocalDate.of(year, month + 1, day).toEpochDay()
+                if (start > now.toEpochDay()) {
+                    host.showNotice("未来的日子还不能记录")
+                } else {
+                    WorkbenchStore.update(host) { data ->
+                        val periods = data.periods.toMutableList()
+                        val active = periods.firstOrNull { it.endDay == null && it.startDay <= start }
+                        if (active != null) {
+                            val idx = periods.indexOf(active)
+                            periods[idx] = active.copy(endDay = maxOf(active.startDay, start - 1))
+                        }
+                        periods += PeriodRecord(
+                            id = WorkbenchStore.newId(),
+                            startDay = start,
+                            endDay = null,
+                        )
+                        data.copy(periods = periods.sortedByDescending { it.startDay })
+                    }
+                    host.showNotice("已经记下这次开始")
+                    render(preserveScroll = false)
+                }
+            },
+            now.year,
+            now.monthValue - 1,
+            now.dayOfMonth,
+        )
+        picker.datePicker.maxDate = System.currentTimeMillis()
+        picker.show()
+    }
+
+    private fun endPeriod() {
+        val snapshot = WorkbenchStore.get(host)
+        val active = snapshot.periods.firstOrNull { it.endDay == null } ?: run {
+            host.showNotice("还没有进行中的记录")
+            return
+        }
+        val today = LocalDate.now().toEpochDay()
+        WorkbenchStore.update(host) { data ->
+            data.copy(periods = data.periods.map {
+                if (it.id == active.id) it.copy(endDay = maxOf(today, it.startDay)) else it
+            })
+        }
+        host.showNotice("这次记录结束了，辛苦了")
+        render(preserveScroll = false)
+    }
+
+    private fun editCycleLength(current: Int) {
+        showInputDialog(
+            host,
+            "周期长度",
+            "一般可按 21–45 天记录。这个数字只用于预测，不用于避孕或诊断。",
+            current.toString(),
+            "28",
+        ) { value ->
+            val days = value.trim().toIntOrNull()
+            if (days == null || days !in 21..45) {
+                host.showNotice("请输入 21–45 之间的天数")
+                return@showInputDialog false
+            }
+            WorkbenchStore.update(host) { data -> data.copy(cycleLength = days) }
+            host.showNotice("周期长度已改为 $days 天")
+            render(preserveScroll = false)
+            true
+        }
+    }
+
+    private fun periodRow(period: PeriodRecord): View {
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(host.dp(16), host.dp(12), host.dp(16), host.dp(12))
+        }
+        row.addView(iconSeal(host, "期", Color.rgb(168, 112, 118), Color.rgb(246, 231, 230), 32))
+        val labels = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(host.dp(10), 0, 0, 0)
+        }
+        labels.addView(newText(host, epochDate(period.startDay, "M月d日"), 12.5f, AppColors.ink, AppFont.sansMedium))
+        labels.addView(newText(
+            host,
+            if (period.endDay == null) "记录中" else "至 ${epochDate(period.endDay, "M月d日")}",
+            9.5f,
+            if (period.endDay == null) AppColors.cinnabar else AppColors.faint,
+            AppFont.sans,
+        ).apply { setPadding(0, host.dp(3), 0, 0) })
+        row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        return row
+    }
+
+    // ----------------------------------------------------------------- wishes
+
+    private fun buildWishlist(snapshot: WorkbenchSnapshot) {
+        val done = snapshot.wishes.count { it.done }
+        val summary = contentCard(host)
+        summary.addView(newText(host, "愿望清单", 10f, AppColors.muted, AppFont.sansMedium, 0.08f))
+        summary.addView(newText(host, "${snapshot.wishes.size}", 31f, AppColors.ink, AppFont.serif).apply {
+            setPadding(0, host.dp(4), 0, 0)
+            includeFontPadding = false
+        })
+        summary.addView(newText(
+            host,
+            if (snapshot.wishes.isEmpty()) "把想做的事写下来，愿望就有了形状。"
+            else "$done 个已经实现 · 还有 ${snapshot.wishes.size - done} 个在路上",
+            10.5f,
+            AppColors.muted,
+            AppFont.sans,
+        ).apply { setPadding(0, host.dp(5), 0, 0) })
+        content.addView(summary, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+
+        val form = contentCard(host)
+        form.addView(newText(host, "写下一个愿望", 14f, AppColors.ink, AppFont.sansMedium))
+        val input = textInput(host, "想去看的海、想见的人、想学会的事…")
+        form.addView(input, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(48),
+        ).apply { topMargin = host.dp(10) })
+        val add = primaryAction(host, "收进清单") {
+            val title = input.text.toString().trim()
+            if (title.isEmpty()) {
+                host.showNotice("先写下一个小愿望")
+                return@primaryAction
+            }
+            WorkbenchStore.update(host) { data ->
+                data.copy(wishes = data.wishes + WishItem(
+                    id = WorkbenchStore.newId(),
+                    title = title,
+                    done = false,
+                    createdDay = LocalDate.now().toEpochDay(),
+                ))
+            }
+            host.showNotice("愿望已经收好")
+            render(preserveScroll = false)
+        }
+        form.addView(add, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(44),
+        ).apply { topMargin = host.dp(9) })
+        content.addView(form, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(12) })
+
+        if (snapshot.wishes.isEmpty()) {
+            return
+        }
+        content.addView(sectionLabel(host, "愿望"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(24) })
+        val list = contentCard(host, 0)
+        snapshot.wishes.forEachIndexed { index, wish ->
+            if (index > 0) list.addView(cardDivider(host))
+            list.addView(wishRow(wish), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+        }
+        content.addView(list, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
+    }
+
+    private fun wishRow(wish: WishItem): View {
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(host.dp(16), host.dp(12), host.dp(12), host.dp(12))
+            isClickable = true
+            isFocusable = true
+            background = rippleOn(host, roundedDrawable(host, Color.TRANSPARENT, 18f), 0x1427231E)
+            setOnClickListener {
+                WorkbenchStore.update(host) { data ->
+                    data.copy(wishes = data.wishes.map {
+                        if (it.id == wish.id) it.copy(done = !it.done) else it
+                    })
+                }
+                render(preserveScroll = true)
+            }
+        }
+        row.addView(newText(host, if (wish.done) "✓" else "", 12f, AppColors.cream, AppFont.sansMedium).apply {
+            gravity = Gravity.CENTER
+            background = if (wish.done) {
+                roundedDrawable(host, AppColors.sage, 15f)
+            } else {
+                roundedDrawable(host, Color.TRANSPARENT, 15f, 1f, AppColors.line)
+            }
+        }, LinearLayout.LayoutParams(host.dp(30), host.dp(30)))
+        val labels = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(host.dp(10), 0, host.dp(8), 0)
+        }
+        labels.addView(newText(host, wish.title, 13f, if (wish.done) AppColors.muted else AppColors.ink, AppFont.sans).apply {
+            paintFlags = if (wish.done) paintFlags or Paint.STRIKE_THRU_TEXT_FLAG else paintFlags
+            maxLines = 2
+        })
+        labels.addView(newText(host, epochDate(wish.createdDay, "M月d日") + " 写下", 9f, AppColors.faint, AppFont.sans).apply {
+            setPadding(0, host.dp(3), 0, 0)
+        })
+        row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(ImageView(host).apply {
+            setImageResource(R.drawable.ic_trash)
+            setColorFilter(AppColors.faint)
+            contentDescription = "删除这个愿望"
+            setOnClickListener {
+                showConfirmDialog(
+                    host,
+                    "删除这个愿望？",
+                    "「${wish.title}」会从本机删除。",
+                    "删除",
+                    "留着",
+                ) {
+                    WorkbenchStore.update(host) { data ->
+                        data.copy(wishes = data.wishes.filterNot { it.id == wish.id })
+                    }
+                    render(preserveScroll = true)
+                }
+            }
+        }, LinearLayout.LayoutParams(host.dp(17), host.dp(17)))
+        return row
+    }
+
+    private fun emptyCard(text: String): View {
+        return contentCard(host).apply {
+            addView(newText(host, text, 11.5f, AppColors.muted, AppFont.sans).apply {
+                setLineSpacing(host.dpf(3f), 1f)
+            })
+        }
+    }
+}

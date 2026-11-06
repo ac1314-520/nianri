@@ -1,34 +1,58 @@
 # 念日 · NianRi
 
-一款干净、安静、完全本地优先的 Android 纪念日手帐。
+一款干净、安静、完全本地优先的 Android 纪念日手帐，也是一张可以慢慢填满的生活工作台。
 
-没有广告，没有账号，没有统计 SDK。照片和纪念日默认只保存在这台手机里；只有你主动检查更新（或开启自动检查）时才会访问网络。
+没有广告，没有账号，没有统计 SDK。照片、纪念日和工作台记录默认只保存在这台手机里；只有你主动检查更新（或开启自动检查）或刷新天气时才会访问网络。
 
-**安装包**：[`release/NianRi-Android-1.3.0.apk`](release/NianRi-Android-1.3.0.apk)  
-**SHA-256**：[`release/SHA256-1.3.0.txt`](release/SHA256-1.3.0.txt)  
+**安装包**：[`release/NianRi-Android-2.0.0.apk`](release/NianRi-Android-2.0.0.apk)  
+**SHA-256**：[`release/SHA256-2.0.0.txt`](release/SHA256-2.0.0.txt)  
 **安装说明**：[`release/安装说明.txt`](release/安装说明.txt)  
 **GitHub**：[`ac1314-520/nianri`](https://github.com/ac1314-520/nianri)
 
 ![首页](docs/preview-home.png)
 
-| 详情 | 编辑 | 设置 | 空状态 |
-| --- | --- | --- | --- |
-| ![详情](docs/preview-detail.png) | ![编辑](docs/preview-editor.png) | ![设置](docs/preview-settings.png) | ![空状态](docs/preview-empty.png) |
+| 工作台 | 日记 | 设置 |
+| --- | --- | --- |
+| ![工作台](docs/preview-workbench.png) | ![日记](docs/preview-diary.png) | ![设置](docs/preview-settings.png) |
+| 详情 | 编辑 | 空状态 |
+| ![详情](docs/preview-detail.png) | ![编辑](docs/preview-editor.png) | ![空状态](docs/preview-empty.png) |
 
-> 预览图使用演示数据；实际安装后从空手帐开始。截图中的通知权限状态属于测试设备。
+> 预览图使用演示数据；实际安装后从空手帐开始。截图中的通知权限和天气城市属于测试设备。
 
 ## 功能
+
+### 纪念日与手帐
 
 | 功能 | 说明 |
 | --- | --- |
 | 纪念日 | 每年同一天重复，显示相伴天数与下一个周年倒计时 |
 | 倒数日 | 一次性日期，可倒数未来，也可记录已经走过的日子 |
-| 照片 | 直接打开系统照片选择器 / 相册（不再进入文件管理器的图片文件夹），自动压缩、修正 EXIF 方向并保存到应用私有目录 |
+| 照片 | 直接打开系统照片选择器 / 相册，自动压缩、修正 EXIF 方向并保存到应用私有目录 |
 | 颜色 | 12 种低饱和色板，两行排布；没有照片时也会生成对应色调的落日画面 |
-| 左滑删除 | 首页卡片和主卡都可以左滑删除，删除后 5 秒内可撤销；照片会等撤销窗口结束才真正清理 |
+| 左滑删除 | 首页卡片和主卡都可以左滑删除，删除后 5 秒内可撤销 |
 | 仪式感 | 大幅照片卡、纸张暖色、宋体数字、今日花瓣动画、周年刻度、每日手记 |
 | 提醒 | 每个日子可开关提醒、提前 0–30 天；所有提醒共用一个每日检查时间 |
 | 小米 / HyperOS | 精确闹钟状态、通知权限、电池优化、自启动入口与说明；开机后恢复提醒 |
+
+### 工作台
+
+首页右上角的四格图标进入工作台。它是第二张桌面，不是把首页堆满。
+
+| 功能 | 说明 |
+| --- | --- |
+| 今日天气 | 手动设置城市，使用 Open-Meteo 公开天气数据；不申请定位权限，30 分钟内优先使用缓存 |
+| 今日心情 | 开心、平静、累了、低落、焦虑、感恩六种心情，点一下即可记录 |
+| 每日打卡 | 日常、恋爱、追星三类计划统一管理；可添加、打卡、连续天数、删除 |
+| 日记 | 按日期写下一段文字，可附心情；支持历史查看、编辑和删除 |
+| 理财记账 | 收入 / 支出、金额、分类和备注；展示本月支出、收入和结余 |
+| 生理期 | 记录开始 / 结束、周期长度、预测下一次、历史记录和一般生活提示 |
+| 愿望清单 | 写下愿望、勾选实现、删除；顶部显示完成进度 |
+| 每日文案 | 工作台每天换一句短句，给普通日子一点留白 |
+
+### 通用
+
+| 功能 | 说明 |
+| --- | --- |
 | 在线更新 | 默认指向本仓库的公开清单；也可以换成自己的 HTTPS 地址；下载时校验 SHA-256、包名、版本号与签名后才允许安装 |
 | 反馈与建议 | 「设置 → 反馈与建议」直接打开 GitHub Issues，自动带入版本、Android 版本和机型；也可以加作者微信 `MiManchi13l4520` 反馈 |
 | 隐私 | 无广告、无登录、无埋点；不集成任何第三方统计或广告 SDK |
@@ -41,7 +65,7 @@
 
 ## 安装
 
-1. 把 `release/NianRi-Android-1.3.0.apk` 传到手机。
+1. 把 `release/NianRi-Android-2.0.0.apk` 传到手机。
 2. 点开安装；系统询问时允许「安装未知应用」。这是侧载应用的正常提示。
 3. 第一次保存带提醒的纪念日时，系统会询问通知权限，请选择允许。
 4. 打开「设置 → 提醒」，检查通知、精确提醒和电池优化状态。
@@ -49,16 +73,23 @@
 
 APK 只使用以下权限：
 
-- `INTERNET`：仅用于你主动发起的更新检查与下载
+- `INTERNET`：仅用于你主动发起的更新检查与下载，以及工作台的天气刷新
 - `POST_NOTIFICATIONS`：发送纪念日提醒
 - `SCHEDULE_EXACT_ALARM`：让每日检查尽量准时（未授权时自动降级为不精确闹钟）
 - `RECEIVE_BOOT_COMPLETED`：重启后恢复提醒
 - `REQUEST_INSTALL_PACKAGES`：安装你确认下载的更新
 - `VIBRATE`：通知震动
 
+应用**不申请定位权限**。天气只使用你手动输入的城市名，并把经纬度保存在本机；没有开启定位，也不会在后台持续请求天气。
+
 ## 使用
 
 - 首页右下角的朱砂圆形按钮：新建纪念日。
+- 首页右上角的四格图标：打开工作台。
+- 工作台天气卡：首次点「设置」输入城市；之后点天气卡刷新，点「换城市」修改城市。
+- 工作台心情：点一下今天的心情；再点一次可取消。
+- 工作台打卡：直接点今日计划即可勾选；点「查看全部」管理日常 / 恋爱 / 追星计划。
+- 工作台日记、记账、生理期、愿望：从工作台卡片进入「记录」对应页签；所有内容只保存在本机。
 - 选择照片时会直接打开 Android 系统照片选择器（或系统相册），只授予所选照片的临时读取权限。
 - 在任意纪念日卡片或顶部主卡上向左滑动：删除；底部会出现「撤销」，5 秒内可恢复。
 - 每年纪念：主数字是相伴天数，副文案提示距离下一个周年还有多少天。
@@ -70,6 +101,15 @@ APK 只使用以下权限：
 - 在线更新默认指向公开仓库的 `release/update.json`；只有手动检查或开启自动检查时才会访问。
 - 如果错过提醒：请检查通知权限、精确提醒、电池优化和自启动；在 HyperOS 上建议把念日加入后台白名单。
 
+## 生理期提示说明
+
+应用里的生理期内容是**一般生活提示**，不是诊断，也不用于避孕。它参考了 NHS 与 ACOG 的公开资料，重点提醒热敷、休息、补水、含铁饮食、按说明书使用止痛药，以及出现剧烈疼痛、异常大量出血、经期过长或发热晕厥时及时就医。每个人的身体情况不同，具体用药和处理请咨询医生或药师。
+
+参考资料：
+
+- [NHS — Period problems](https://www.nhs.uk/conditions/periods/period-problems/)
+- [ACOG — Dysmenorrhea: Painful Periods](https://www.acog.org/womens-health/faqs/dysmenorrhea)
+
 ## 联系作者
 
 除了 GitHub Issues，也可以加作者微信：**MiManchi13l4520** 反馈问题或提功能建议。添加时请备注「念日」，方便辨认。
@@ -80,13 +120,13 @@ APK 只使用以下权限：
 
 ### 默认更新清单
 
-念日 1.3.0 已内置下面地址：
+念日 2.0.0 已内置下面地址：
 
 ```text
 https://raw.githubusercontent.com/ac1314-520/nianri/main/release/update.json
 ```
 
-如果手机当前是 1.0.0、1.1.0 或 1.2.0，会检测到 1.3.0；已经是 1.3.0 会提示已是最新。想换成自己的清单，进入「设置 → 在线更新 → 更新源」替换即可。
+如果手机当前是 1.0.0–1.3.0，会检测到 2.0.0；已经是 2.0.0 会提示已是最新。想换成自己的清单，进入「设置 → 在线更新 → 更新源」替换即可。
 
 ### 1. 清单格式
 
@@ -94,9 +134,9 @@ https://raw.githubusercontent.com/ac1314-520/nianri/main/release/update.json
 
 ```json
 {
-  "versionCode": 5,
-  "versionName": "1.3.1",
-  "apkUrl": "https://example.com/nianri/NianRi-Android-1.3.1.apk",
+  "versionCode": 6,
+  "versionName": "2.0.1",
+  "apkUrl": "https://example.com/nianri/NianRi-Android-2.0.1.apk",
   "sha256": "替换为新 APK 的 SHA-256",
   "notes": "• 修复了一些小问题\n• 优化了使用体验",
   "publishedAt": "2026-11-06"
@@ -114,10 +154,10 @@ https://raw.githubusercontent.com/ac1314-520/nianri/main/release/update.json
 
 ```bash
 python tools/make_update_manifest.py \
-  --apk release/NianRi-Android-1.3.1.apk \
-  --version-code 5 \
-  --version-name 1.3.1 \
-  --apk-url https://example.com/nianri/NianRi-Android-1.3.1.apk \
+  --apk release/NianRi-Android-2.0.1.apk \
+  --version-code 6 \
+  --version-name 2.0.1 \
+  --apk-url https://example.com/nianri/NianRi-Android-2.0.1.apk \
   --notes "· 一些小改进" \
   --out release/update.json
 ```
@@ -199,12 +239,14 @@ kotlin.incremental=false
 3. 用 `tools/make_update_manifest.py` 生成带有新 SHA-256 的 `update.json`；
 4. 上传新 APK 和清单。
 
-> 公开仓库不包含发布签名密钥，`keystore/` 只保留在维护者本地。仓库中的 `release/NianRi-Android-1.3.0.apk` 是已签名安装包；如果你从源码自行构建，需要使用自己的签名配置，不能覆盖官方签名的安装。
+> 公开仓库不包含发布签名密钥，`keystore/` 只保留在维护者本地。仓库中的 `release/NianRi-Android-2.0.0.apk` 是已签名安装包；如果你从源码自行构建，需要使用自己的签名配置，不能覆盖官方签名的安装。
 
 ## 数据与备份
 
 - 纪念日索引：`files/anniversaries.json`（应用私有目录）
+- 工作台数据：`files/workbench.json`（日记、打卡、记账、生理期、愿望、心情）
 - 照片：`files/photos/`
+- 天气城市和缓存：`shared_prefs/nianri_weather.xml`
 - `allowBackup=true`：由 Android 系统备份管理。是否上传到云备份取决于你的手机系统设置。
 - 卸载应用会删除全部本地数据；升级安装不会。
 
@@ -214,10 +256,10 @@ kotlin.incremental=false
 nianri/
   app/src/main/java/com/nianri/app/
     MainActivity.kt          页面切换、权限、安装更新、整体交互
-    data/                    本地存储、偏好、图片导入与清理
+    data/                    纪念日/工作台存储、天气、偏好、图片导入与清理
     model/                   数据模型、日期展示与文案
     reminder/                闹钟排程、通知、开机恢复
-    ui/                      首页、详情、编辑、设置、弹层、自绘组件
+    ui/                      首页、工作台、记录、详情、编辑、设置、弹层、自绘组件
     update/                  清单解析、下载、哈希与签名校验
   app/src/main/res/          主题、图标、启动页与 XML 配置
   keystore/                  维护者本地签名（公开仓库不包含）
@@ -234,10 +276,16 @@ nianri/
 - 系统照片选择器 → 压缩 → 保存 → 首页/详情显示
 - 12 色板选择与无照片落日画面
 - 首页主卡 / 列表卡片左滑删除；撤销恢复与照片延迟清理
+- 工作台 → 天气城市设置、Open-Meteo 天气获取与本地缓存
+- 心情选择、每日打卡（日常 / 恋爱 / 追星）、连续天数与删除
+- 日记写入、修改、历史查看与删除
+- 收入 / 支出记账、月汇总、结余和流水删除
+- 生理期开始 / 结束、周期设置、预测和历史记录
+- 愿望清单添加、完成、删除
+- 本地数据持久化、编辑、删除、返回确认
 - 反馈入口打开 GitHub Issue，预填版本、Android 版本与机型
 - 反馈备注展示作者微信并支持点击复制
 - 默认更新源检查（公开 GitHub 清单）与自定义更新源
-- 本地数据持久化、编辑、删除、返回确认
 - 通知权限请求、每日闹钟到点发送通知
 - Release APK 签名校验（APK Signature Scheme v2 / v3）
 - Release 包实际安装与启动
@@ -246,13 +294,29 @@ nianri/
 
 - 纸张色 `#F6F1E8`、朱砂 `#B05238`、墨色 `#27231E`
 - 首页收紧了标题层级：去掉副品牌行、卡片上的重复英文标签，改用独立卡片 + 悬浮新建按钮
+- 工作台采用「天气与文案 → 心情 → 今日打卡/日记 → 记录入口」四层结构，没有做成六宫格按钮墙；只保留一套纸张色，不做十种彩色主题
+- 卡片按信息密度分级：天气和每日文案用一张大卡，打卡用列表，记账/生理期/愿望用带摘要的记录行
 - 大标题、大数字使用系统衬线字体；没有额外字体包，减少体积
 - 今日纪念日会落下少量花瓣；只播放一次，不打扰日常使用
 - 没有插屏、开屏广告、Banner、推荐位或“猜你喜欢”
 - 空状态、详情页、设置页都使用同一套排版语言
-- 卡片大数字与左滑手势的设计参考了开源项目 [TickCount](https://github.com/ZZPBY/tickcount) 和 [Countdown-App](https://github.com/LaoYinBai/Countdown-App)；念日的界面和滑动组件为自绘实现
+- 卡片大数字与左滑手势的设计参考了开源项目 [TickCount](https://github.com/ZZPBY/tickcount) 和 [Countdown-App](https://github.com/LaoYinBai/Countdown-App)；念日的界面、工作台和滑动组件为自绘实现
 
 ## 版本记录
+
+### 2.0.0（2026-11-06）
+
+- 新增「工作台」：首页右上角四格图标进入
+- 新增天气：手动设置城市，Open-Meteo 数据，不申请定位权限，30 分钟缓存
+- 新增每日心情、每日文案
+- 新增每日打卡：日常 / 恋爱 / 追星三类计划、连续天数、删除
+- 新增日记：日期、心情、正文，支持历史查看、编辑、删除
+- 新增记账：收入 / 支出、分类、备注、本月汇总
+- 新增生理期：开始 / 结束、周期、预测、历史、一般生活提示
+- 新增愿望清单：添加、完成、删除
+- 新增工作台本地数据 `files/workbench.json`，所有记录仍只保存在本机
+- 更新隐私说明、权限说明、README 和 GitHub Release
+- 新增发布包 `NianRi-Android-2.0.0.apk`
 
 ### 1.3.0（2026-11-06）
 
@@ -286,5 +350,7 @@ nianri/
 
 - AndroidX Core（Apache License 2.0）
 - Android 系统组件：AlarmManager、Notification、Activity、View、java.time 等
+- 天气数据：[Open-Meteo](https://open-meteo.com/)，公开 API，无需 API key
+- 生理期一般提示参考：[NHS — Period problems](https://www.nhs.uk/conditions/periods/period-problems/) 与 [ACOG — Dysmenorrhea](https://www.acog.org/womens-health/faqs/dysmenorrhea)
 
 除此之外没有网络框架、广告 SDK、统计 SDK 或账号 SDK。

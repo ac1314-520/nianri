@@ -28,6 +28,8 @@ import android.widget.Toast
 import com.nianri.app.data.AnniversaryStore
 import com.nianri.app.data.AppPreferences
 import com.nianri.app.data.PhotoStore
+import com.nianri.app.data.WeatherManager
+import com.nianri.app.data.WeatherStore
 import com.nianri.app.model.Anniversary
 import com.nianri.app.reminder.ReminderEngine
 import com.nianri.app.reminder.ReminderScheduler
@@ -37,7 +39,10 @@ import com.nianri.app.ui.DetailView
 import com.nianri.app.ui.EditorView
 import com.nianri.app.ui.HomeView
 import com.nianri.app.ui.ProgressDialogHandle
+import com.nianri.app.ui.RecordsTab
+import com.nianri.app.ui.RecordsView
 import com.nianri.app.ui.SettingsView
+import com.nianri.app.ui.WorkbenchView
 import com.nianri.app.ui.createProgressDialog
 import com.nianri.app.ui.dp
 import com.nianri.app.ui.dpf
@@ -60,13 +65,15 @@ import kotlin.math.max
 
 class MainActivity : Activity() {
 
-    private enum class Screen { HOME, DETAIL, EDITOR, SETTINGS }
+    private enum class Screen { HOME, WORKBENCH, RECORDS, DETAIL, EDITOR, SETTINGS }
 
     private lateinit var root: FrameLayout
     private var currentScreenView: View? = null
     private var screen = Screen.HOME
     private var editorView: EditorView? = null
     private var settingsView: SettingsView? = null
+    private var workbenchView: WorkbenchView? = null
+    private var recordsView: RecordsView? = null
     private var detailEventId: String? = null
     private var editorOriginalId: String? = null
     private var photoPickerCallback: ((Uri?) -> Unit)? = null
@@ -124,6 +131,9 @@ class MainActivity : Activity() {
         super.onResume()
         if (screen == Screen.SETTINGS) {
             settingsView?.refresh()
+        }
+        if (screen == Screen.WORKBENCH) {
+            workbenchView?.refresh()
         }
         if (refreshOnResume) {
             refreshOnResume = false
@@ -211,10 +221,35 @@ class MainActivity : Activity() {
     fun showHome(animated: Boolean = true) {
         editorView = null
         settingsView = null
+        workbenchView = null
+        recordsView = null
         detailEventId = null
         editorOriginalId = null
         val home = HomeView(this, AnniversaryStore.all(this))
         swapScreen(home, Screen.HOME, animated)
+    }
+
+    fun openWorkbench() {
+        if (screen == Screen.WORKBENCH) return
+        val workbench = WorkbenchView(this)
+        workbenchView = workbench
+        recordsView = null
+        editorView = null
+        settingsView = null
+        detailEventId = null
+        editorOriginalId = null
+        swapScreen(workbench, Screen.WORKBENCH, true)
+    }
+
+    fun openRecords(tab: RecordsTab) {
+        val records = RecordsView(this, tab)
+        recordsView = records
+        workbenchView = null
+        editorView = null
+        settingsView = null
+        detailEventId = null
+        editorOriginalId = null
+        swapScreen(records, Screen.RECORDS, true)
     }
 
     fun openDetail(event: Anniversary, animate: Boolean = true) {
@@ -244,6 +279,8 @@ class MainActivity : Activity() {
         val settings = SettingsView(this)
         settingsView = settings
         editorView = null
+        workbenchView = null
+        recordsView = null
         swapScreen(settings, Screen.SETTINGS, true)
     }
 
@@ -602,6 +639,29 @@ class MainActivity : Activity() {
         ReminderEngine.openNotificationSettings(this)
     }
 
+    fun showWeatherCityDialog() {
+        showInputDialog(
+            this,
+            "天气城市",
+            "天气使用 Open-Meteo 的公开数据，只要城市名，不需要定位权限。设置后只有打开工作台或手动刷新时才联网。",
+            WeatherStore.city(this),
+            "例如：北京",
+        ) { value ->
+            val city = value.trim()
+            if (city.isEmpty()) {
+                showNotice("先写一个城市名")
+                return@showInputDialog false
+            }
+            showNotice("正在查找城市…")
+            WeatherManager.configureCity(this, city) { ok, message ->
+                if (isFinishing || isDestroyed) return@configureCity
+                showNotice(message)
+                if (ok) workbenchView?.refresh()
+            }
+            true
+        }
+    }
+
     fun openExactAlarmSettings() {
         refreshOnResume = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -937,6 +997,8 @@ class MainActivity : Activity() {
     private fun handleBack() {
         when (screen) {
             Screen.HOME -> finish()
+            Screen.WORKBENCH -> showHome()
+            Screen.RECORDS -> openWorkbench()
             Screen.EDITOR -> editorView?.let { closeEditor(it) } ?: showHome()
             Screen.DETAIL, Screen.SETTINGS -> showHome()
         }

@@ -140,6 +140,20 @@ class HomeView(
             ).apply { marginStart = host.dp(11) })
             addView(iconButton(
                 host,
+                R.drawable.ic_workbench,
+                "打开工作台",
+                42,
+                19,
+                AppColors.inkSoft,
+                Color.TRANSPARENT,
+                AppColors.line,
+            ).apply {
+                setOnClickListener { host.openWorkbench() }
+            }, LinearLayout.LayoutParams(host.dp(42), host.dp(42)).apply {
+                marginEnd = host.dp(8)
+            })
+            addView(iconButton(
+                host,
                 R.drawable.ic_settings,
                 "打开设置",
                 42,

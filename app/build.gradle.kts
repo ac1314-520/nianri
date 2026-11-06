@@ -10,6 +10,8 @@ val versionProps = Properties().apply {
 }
 val appVersionCode = versionProps.getProperty("VERSION_CODE").toInt()
 val appVersionName = versionProps.getProperty("VERSION_NAME")
+// 默认使用公开仓库里的更新清单；本地可用 -PupdateManifestUrl=... 覆盖。
+val defaultUpdateManifest = "https://raw.githubusercontent.com/ac1314-520/nianri/main/release/update.json"
 
 val keystorePropsFile = rootProject.file("keystore/keystore.properties")
 val keystoreProps = Properties().apply {
@@ -31,11 +33,11 @@ android {
         versionName = appVersionName
         vectorDrawables.useSupportLibrary = false
 
-        // 可留空：在应用「设置 -> 在线更新」里填写更新清单地址也可以。
+        // 默认指向念日公开仓库；用户仍可在「设置 -> 在线更新」里改成自己的地址或清空。
         buildConfigField(
             "String",
             "DEFAULT_UPDATE_MANIFEST",
-            "\"${project.findProperty("updateManifestUrl") ?: ""}\""
+            "\"${project.findProperty("updateManifestUrl") ?: defaultUpdateManifest}\""
         )
     }
 

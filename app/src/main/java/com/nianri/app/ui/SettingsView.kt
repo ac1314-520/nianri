@@ -102,6 +102,15 @@ class SettingsView(
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = host.dp(10) })
 
+        column.addView(sectionLabel("反馈与建议"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(26) })
+        column.addView(buildFeedbackCard(), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
+
         column.addView(sectionLabel("数据与隐私"), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -371,12 +380,12 @@ class SettingsView(
         updateSourceValue = valueText()
         card.addView(settingRow(
             "更新源",
-            "你自己的 HTTPS 更新清单",
+            "默认为公开清单，可替换",
             statusTrailing(updateSourceValue),
         ) { host.showUpdateSourceDialog() })
         val tip = newText(
             host,
-            "仅支持 HTTPS；安装前会校验文件指纹与签名。",
+            "默认使用念日 GitHub 公开清单；安装前会校验文件指纹与签名。",
             9.5f,
             AppColors.faint,
             AppFont.sans,
@@ -385,6 +394,83 @@ class SettingsView(
         }
         card.addView(tip)
         return card
+    }
+
+    private fun buildFeedbackCard(): View {
+        val card = groupCard()
+        card.addView(settingRow(
+            "报告一个问题",
+            "带上版本和系统信息，打开 GitHub Issue",
+            chevron(),
+        ) { host.openExternalUrl(buildFeedbackUrl(FeedbackKind.BUG)) })
+        card.addView(divider())
+        card.addView(settingRow(
+            "提一个功能建议",
+            "说说你希望念日还能记住什么",
+            chevron(),
+        ) { host.openExternalUrl(buildFeedbackUrl(FeedbackKind.FEATURE)) })
+        card.addView(newText(
+            host,
+            "反馈会公开在 GitHub Issues；请不要附带照片、纪念日标题或其他私密内容。",
+            9.5f,
+            AppColors.faint,
+            AppFont.sans,
+        ).apply {
+            setPadding(host.dp(16), 0, host.dp(16), host.dp(12))
+            setLineSpacing(host.dpf(3f), 1f)
+        })
+        return card
+    }
+
+    private fun buildFeedbackUrl(kind: FeedbackKind): String {
+        val device = listOf(Build.MANUFACTURER, Build.MODEL)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+        val version = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+        val system = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+        val body = when (kind) {
+            FeedbackKind.BUG -> """
+                ### 问题描述
+                （发生了什么？你期望的结果是什么？）
+
+                ### 复现步骤
+                1. 
+                2. 
+
+                ### 设备信息
+                - 念日：$version
+                - 系统：$system
+                - 机型：$device
+
+                > 请勿附带照片、纪念日标题或其他私密内容。
+            """.trimIndent()
+            FeedbackKind.FEATURE -> """
+                ### 想要的功能
+                （请描述你希望念日增加什么）
+
+                ### 使用场景
+                （这个功能会在什么时候帮到你？）
+
+                ### 设备信息
+                - 念日：$version
+                - 系统：$system
+                - 机型：$device
+
+                > 请勿附带照片、纪念日标题或其他私密内容。
+            """.trimIndent()
+        }
+        return Uri.parse(FEEDBACK_ISSUE_URL).buildUpon()
+            .appendQueryParameter(
+                "labels",
+                if (kind == FeedbackKind.BUG) "bug" else "enhancement",
+            )
+            .appendQueryParameter(
+                "title",
+                if (kind == FeedbackKind.BUG) "[Bug] " else "[建议] ",
+            )
+            .appendQueryParameter("body", body)
+            .build()
+            .toString()
     }
 
     private fun handleAutoUpdateToggle(checked: Boolean) {
@@ -396,7 +482,7 @@ class SettingsView(
             showConfirmDialog(
                 host,
                 "先设置一个更新源",
-                "自动检查只会访问你自己填写的 HTTPS 清单地址。设置完成后，再开启它。",
+                "自动检查只会访问当前的 HTTPS 清单地址。设置完成后，再开启它。",
                 "填写更新源",
                 "暂不开启",
             ) { host.showUpdateSourceDialog() }
@@ -425,7 +511,7 @@ class SettingsView(
         card.addView(head)
         card.addView(newText(
             host,
-            "无账号、无广告、无统计 SDK。\n照片与纪念日保存在应用私有目录，只有你主动检查更新时才会联网。",
+            "无账号、无广告、无统计 SDK。\n照片与纪念日保存在应用私有目录，只有你检查更新时才会联网。",
             10.5f,
             AppColors.inkSoft,
             AppFont.sans,
@@ -447,7 +533,7 @@ class SettingsView(
             "隐私与数据",
             "念日没有账号，也没有广告、追踪或统计 SDK。\n\n" +
                 "1. 纪念日、照片和设置保存在应用私有目录。其他应用默认无法读取。\n" +
-                "2. 只有你手动检查更新，或主动开启自动检查后，念日才会访问你填写的 HTTPS 更新源。\n" +
+                "2. 只有你手动检查更新，或主动开启自动检查后，念日才会访问当前的 HTTPS 更新源。\n" +
                 "3. 更新下载完成后，必须通过 SHA-256 指纹、包名、版本号和签名校验，系统才允许继续安装。\n" +
                 "4. 是否把应用数据纳入系统云备份，由手机系统备份设置决定。\n" +
                 "5. 卸载念日会删除本地数据，系统备份可以帮助你在新设备上恢复。",
@@ -579,5 +665,11 @@ class SettingsView(
             brand.contains("xiaomi") ||
             brand.contains("redmi") ||
             brand.contains("poco")
+    }
+
+    private enum class FeedbackKind { BUG, FEATURE }
+
+    companion object {
+        private const val FEEDBACK_ISSUE_URL = "https://github.com/ac1314-520/nianri/issues/new"
     }
 }

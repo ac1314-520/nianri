@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.app.NotificationManager
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -627,6 +629,27 @@ class MainActivity : Activity() {
         }
     }
 
+    /** 打开反馈 Issue；没有浏览器时把链接复制到剪贴板，不丢反馈入口。 */
+    fun openExternalUrl(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: ActivityNotFoundException) {
+            copyFeedbackUrl(url)
+        } catch (_: Exception) {
+            copyFeedbackUrl(url)
+        }
+    }
+
+    private fun copyFeedbackUrl(url: String) {
+        val clipboard = getSystemService(ClipboardManager::class.java)
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText("念日反馈链接", url))
+            showNotice("没有可用浏览器，反馈链接已复制")
+        } else {
+            showNotice("没有找到可用的浏览器")
+        }
+    }
+
     fun openBatteryOptimizationSettings() {
         refreshOnResume = true
         val powerManager = getSystemService(android.os.PowerManager::class.java)
@@ -686,7 +709,7 @@ class MainActivity : Activity() {
         showInputDialog(
             this,
             "在线更新源",
-            "填写一个 HTTPS JSON 清单地址。清单需包含 versionCode、versionName、apkUrl 和 sha256。留空即可关闭在线检查。\n\n示例：https://example.com/nianri/update.json",
+            "默认使用念日 GitHub 公开清单；也可以替换成你自己的 HTTPS JSON 地址。清单需包含 versionCode、versionName、apkUrl 和 sha256，留空即可关闭在线检查。",
             current,
             "https://…/update.json",
         ) { value ->

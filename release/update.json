@@ -1,8 +1,8 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/main/release/NianRi-Android-1.1.0.apk",
-  "sha256": "74587e6a1e0ad12373701bf28fbf4e1d5cf933763521db6bb511369b827b25d7",
-  "notes": "• 照片改为直接打开系统照片选择器 / 相册\n• 颜色扩展到 12 种\n• 首页重排，新增左滑删除与撤销\n• 详情页、编辑页排版精简",
+  "versionCode": 3,
+  "versionName": "1.2.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/main/release/NianRi-Android-1.2.0.apk",
+  "sha256": "c089afd77b1ba979cde36cc3f685132c7cea40cd90b4cc08d428c85066ddb059",
+  "notes": "• 设置新增「反馈与建议」，可报告问题或提功能建议\n• 反馈会自动带入版本、Android 版本和机型\n• 在线更新默认使用念日公开仓库清单\n• 更新源仍可替换或清空，自动检查默认关闭",
   "publishedAt": "2026-11-06"
 }

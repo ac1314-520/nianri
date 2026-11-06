@@ -81,6 +81,17 @@ class RecordsView(
     private var ledgerYear: Int = LocalDate.now().year
     private var periodMonth: YearMonth = YearMonth.now()
 
+    private val periodQuotes = listOf(
+        "身体有自己的节律，慢一点也没关系。",
+        "这几天，先把自己放在第一位。",
+        "不必逞强，休息也是在好好生活。",
+        "记录不是为了焦虑，而是更懂自己。",
+        "愿你有热水、有软枕，也有一点点被照顾的感觉。",
+        "经期不是需要被纠正的日子，只是需要被温柔对待。",
+        "今天的任务只有一个：舒服一点。",
+        "累的时候就停一停，日子不会因此落下。",
+    )
+
     init {
         background = android.graphics.drawable.ColorDrawable(AppColors.paper)
         buildShell()
@@ -1399,17 +1410,6 @@ class RecordsView(
     }
 
     // ---------------------------------------------------------------- period
-
-    private val periodQuotes = listOf(
-        "身体有自己的节律，慢一点也没关系。",
-        "这几天，先把自己放在第一位。",
-        "不必逞强，休息也是在好好生活。",
-        "记录不是为了焦虑，而是更懂自己。",
-        "愿你有热水、有软枕，也有一点点被照顾的感觉。",
-        "经期不是需要被纠正的日子，只是需要被温柔对待。",
-        "今天的任务只有一个：舒服一点。",
-        "累的时候就停一停，日子不会因此落下。",
-    )
 
     private fun buildPeriod(snapshot: WorkbenchSnapshot) {
         val todayDate = LocalDate.now()

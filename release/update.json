@@ -1,8 +1,8 @@
 {
-  "versionCode": 9,
-  "versionName": "2.3.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.3.0.apk",
-  "sha256": "f7df77ede902b6e6c936510984c8af53b60201b61c9270f8e66e7bc4211cde63",
-  "notes": "• 生理期新增日历、周期分析、温馨建议\n• 历史记录支持左滑删除并撤销\n• 周期状态、预测和记录布局重新整理",
+  "versionCode": 10,
+  "versionName": "2.3.1",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.3.1.apk",
+  "sha256": "fe2dc15170407bcd36fb1f671b2f3b2111cf63345ecb708afaf7fbb936a2ff9b",
+  "notes": "• 修复 2.3.0 首次打开生理期可能闪退的问题\n• 生理期日历、周期分析、建议和左滑删除保持完整\n• 2.3.1 为本次建议安装的修复版",
   "publishedAt": "2026-11-06"
 }

@@ -4,8 +4,8 @@
 
 没有广告，没有账号，没有统计 SDK。照片、纪念日和工作台记录默认只保存在这台手机里；只有你主动检查更新（或开启自动检查）或刷新天气时才会访问网络。
 
-**安装包**：[`release/NianRi-Android-2.3.0.apk`](release/NianRi-Android-2.3.0.apk)  
-**SHA-256**：[`release/SHA256-2.3.0.txt`](release/SHA256-2.3.0.txt)  
+**安装包**：[`release/NianRi-Android-2.3.1.apk`](release/NianRi-Android-2.3.1.apk)  
+**SHA-256**：[`release/SHA256-2.3.1.txt`](release/SHA256-2.3.1.txt)  
 **安装说明**：[`release/安装说明.txt`](release/安装说明.txt)  
 **GitHub**：[`ac1314-520/nianri`](https://github.com/ac1314-520/nianri)
 
@@ -34,6 +34,8 @@
 ### 生理期
 
 周期状态卡、经期日历、周期分析、今日建议和历史记录分开呈现。日历支持月份切换，历史记录左滑删除并可撤销。
+
+![生理期](docs/preview-period.png)
 
 > 预览图使用演示数据；实际安装后从空手帐开始。截图中的通知权限和天气城市属于测试设备。
 
@@ -83,7 +85,7 @@
 
 ## 安装
 
-1. 把 `release/NianRi-Android-2.3.0.apk` 传到手机。
+1. 把 `release/NianRi-Android-2.3.1.apk` 传到手机。
 2. 点开安装；系统询问时允许「安装未知应用」。这是侧载应用的正常提示。
 3. 第一次保存带提醒的纪念日时，系统会询问通知权限，请选择允许。
 4. 打开「设置 → 提醒」，检查通知、精确提醒和电池优化状态。
@@ -140,13 +142,13 @@ APK 只使用以下权限：
 
 ### 默认更新清单
 
-念日 2.3.0 已内置下面地址：
+念日 2.3.1 已内置下面地址：
 
 ```text
 https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/update.json
 ```
 
-当前清单版本是 2.3.0；已经是 2.3.0 会提示已是最新。想换成自己的清单，进入「设置 → 在线更新 → 更新源」替换即可。
+当前清单版本是 2.3.1；已经是 2.3.1 会提示已是最新。想换成自己的清单，进入「设置 → 在线更新 → 更新源」替换即可。
 
 ### 1. 清单格式
 
@@ -154,9 +156,9 @@ https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/upda
 
 ```json
 {
-  "versionCode": 10,
-  "versionName": "2.3.1",
-  "apkUrl": "https://example.com/nianri/NianRi-Android-2.3.1.apk",
+  "versionCode": 11,
+  "versionName": "2.3.2",
+  "apkUrl": "https://example.com/nianri/NianRi-Android-2.3.2.apk",
   "sha256": "替换为新 APK 的 SHA-256",
   "notes": "• 修复了一些小问题\n• 优化了使用体验",
   "publishedAt": "2026-11-06"
@@ -174,10 +176,10 @@ https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/upda
 
 ```bash
 python tools/make_update_manifest.py \
-  --apk release/NianRi-Android-2.3.1.apk \
-  --version-code 10 \
-  --version-name 2.3.1 \
-  --apk-url https://example.com/nianri/NianRi-Android-2.3.1.apk \
+  --apk release/NianRi-Android-2.3.2.apk \
+  --version-code 11 \
+  --version-name 2.3.2 \
+  --apk-url https://example.com/nianri/NianRi-Android-2.3.2.apk \
   --notes "· 一些小改进" \
   --out release/update.json
 ```
@@ -259,7 +261,7 @@ kotlin.incremental=false
 3. 用 `tools/make_update_manifest.py` 生成带有新 SHA-256 的 `update.json`；
 4. 上传新 APK 和清单。
 
-> 公开仓库不包含发布签名密钥，`keystore/` 只保留在维护者本地。仓库中的 `release/NianRi-Android-2.3.0.apk` 是已签名安装包；如果你从源码自行构建，需要使用自己的签名配置，不能覆盖官方签名的安装。
+> 公开仓库不包含发布签名密钥，`keystore/` 只保留在维护者本地。仓库中的 `release/NianRi-Android-2.3.1.apk` 是已签名安装包；如果你从源码自行构建，需要使用自己的签名配置，不能覆盖官方签名的安装。
 
 ## 数据与备份
 
@@ -328,6 +330,13 @@ nianri/
 - 卡片大数字与左滑手势的设计参考了开源项目 [TickCount](https://github.com/ZZPBY/tickcount) 和 [Countdown-App](https://github.com/LaoYinBai/Countdown-App)；念日的界面、工作台和滑动组件为自绘实现
 
 ## 版本记录
+
+### 2.3.1（2026-11-06）
+
+- 修复 2.3.0 首次打开生理期页面可能闪退的问题
+- 修复原因是语录列表在页面构造完成前尚未初始化
+- 生理期日历、周期分析、建议与左滑删除保持 2.3.0 的设计
+- 新增发布包 `NianRi-Android-2.3.1.apk`
 
 ### 2.3.0（2026-11-06）
 

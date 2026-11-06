@@ -1,8 +1,8 @@
 {
-  "versionCode": 8,
-  "versionName": "2.2.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.2.0.apk",
-  "sha256": "ce8f564de87a35229916ae07a4da1254efe20c50635326fde0da5d96a4f69fc7",
-  "notes": "• 日记支持月份 / 心情筛选和连续记录\n• 打卡增加近 7 天圆点和名称编辑\n• 愿望清单按在路上的 / 已实现分组，支持编辑",
+  "versionCode": 9,
+  "versionName": "2.3.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.3.0.apk",
+  "sha256": "f7df77ede902b6e6c936510984c8af53b60201b61c9270f8e66e7bc4211cde63",
+  "notes": "• 生理期新增日历、周期分析、温馨建议\n• 历史记录支持左滑删除并撤销\n• 周期状态、预测和记录布局重新整理",
   "publishedAt": "2026-11-06"
 }

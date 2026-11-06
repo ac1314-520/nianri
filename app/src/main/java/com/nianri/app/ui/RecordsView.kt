@@ -45,6 +45,17 @@ enum class RecordsTab(val label: String) {
 
 private enum class LedgerMode { MONTH, YEAR }
 
+private data class PeriodSummary(
+    val sorted: List<PeriodRecord>,
+    val intervals: List<Long>,
+    val lengths: List<Long>,
+    val avgCycle: Int?,
+    val avgPeriod: Int?,
+    val minCycle: Int?,
+    val maxCycle: Int?,
+    val regularity: String,
+)
+
 class RecordsView(
     private val host: MainActivity,
     initialTab: RecordsTab,
@@ -68,6 +79,7 @@ class RecordsView(
     private var ledgerMode = LedgerMode.MONTH
     private var ledgerMonth: YearMonth = YearMonth.now()
     private var ledgerYear: Int = LocalDate.now().year
+    private var periodMonth: YearMonth = YearMonth.now()
 
     init {
         background = android.graphics.drawable.ColorDrawable(AppColors.paper)
@@ -1388,132 +1400,500 @@ class RecordsView(
 
     // ---------------------------------------------------------------- period
 
+    private val periodQuotes = listOf(
+        "身体有自己的节律，慢一点也没关系。",
+        "这几天，先把自己放在第一位。",
+        "不必逞强，休息也是在好好生活。",
+        "记录不是为了焦虑，而是更懂自己。",
+        "愿你有热水、有软枕，也有一点点被照顾的感觉。",
+        "经期不是需要被纠正的日子，只是需要被温柔对待。",
+        "今天的任务只有一个：舒服一点。",
+        "累的时候就停一停，日子不会因此落下。",
+    )
+
     private fun buildPeriod(snapshot: WorkbenchSnapshot) {
-        val today = LocalDate.now().toEpochDay()
+        val todayDate = LocalDate.now()
+        val today = todayDate.toEpochDay()
         val latest = snapshot.latestPeriod()
-        val summary = contentCard(host)
-        summary.addView(newText(host, "周期记录", 10f, AppColors.muted, AppFont.sansMedium, 0.08f))
+        val summary = periodSummary(snapshot)
+
+        content.addView(periodHero(snapshot, latest, summary, today), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+        content.addView(periodCalendarCard(snapshot, summary, today), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(12) })
+        if (snapshot.periods.isNotEmpty()) {
+            content.addView(periodAnalysisCard(snapshot, latest, summary), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(12) })
+        }
+        content.addView(periodCareCard(latest, today, snapshot.cycleLength), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(12) })
+        addPeriodHistory(snapshot, summary, today)
+    }
+
+    private fun periodHero(
+        snapshot: WorkbenchSnapshot,
+        latest: PeriodRecord?,
+        summary: PeriodSummary,
+        today: Long,
+    ): View {
+        val card = contentCard(host)
+        val head = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        head.addView(newText(host, "周期记录", 10f, AppColors.muted, AppFont.sansMedium, 0.08f),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        head.addView(newText(host, "只存在本机", 9f, AppColors.faint, AppFont.sans))
+        card.addView(head)
+
+        val status: String
+        val subtitle: String
         if (latest == null) {
-            summary.addView(newText(host, "还没有记录", 25f, AppColors.ink, AppFont.serif).apply {
-                setPadding(0, host.dp(5), 0, 0)
-            })
-            summary.addView(newText(host, "从一次开始，慢慢了解自己的周期。", 10.5f, AppColors.muted, AppFont.sans).apply {
-                setPadding(0, host.dp(6), 0, 0)
-            })
+            status = "从一次记录开始"
+            subtitle = "记下开始和结束，慢慢看见自己的节律。"
         } else if (latest.endDay == null) {
             val day = (today - latest.startDay + 1).coerceAtLeast(1)
-            summary.addView(newText(host, "经期第 $day 天", 27f, AppColors.cinnabar, AppFont.serif).apply {
-                setPadding(0, host.dp(5), 0, 0)
-            })
-            summary.addView(newText(host, "从 ${epochDate(latest.startDay, "M月d日")} 开始 · 周期 ${snapshot.cycleLength} 天",
-                10.5f, AppColors.muted, AppFont.sans).apply { setPadding(0, host.dp(6), 0, 0) })
+            status = "经期第 $day 天"
+            subtitle = "从 ${epochDate(latest.startDay, "M月d日")} 开始 · 周期 ${snapshot.cycleLength} 天"
         } else {
             val next = latest.startDay + snapshot.cycleLength
             val days = next - today
-            val big = when {
+            status = when {
                 days > 0 -> "预计 $days 天后"
                 days == 0L -> "预计就是今天"
                 else -> "预计时间已到"
             }
-            summary.addView(newText(host, big, 25f, AppColors.ink, AppFont.serif).apply {
-                setPadding(0, host.dp(5), 0, 0)
-            })
-            summary.addView(newText(host, "上次 ${epochDate(latest.startDay, "M月d日")} 开始 · 周期 ${snapshot.cycleLength} 天",
-                10.5f, AppColors.muted, AppFont.sans).apply { setPadding(0, host.dp(6), 0, 0) })
+            subtitle = "上次 ${epochDate(latest.startDay, "M月d日")} 开始 · 周期 ${snapshot.cycleLength} 天"
         }
+        card.addView(newText(host, status, 28f, AppColors.ink, AppFont.serif).apply {
+            setPadding(0, host.dp(6), 0, 0)
+            includeFontPadding = false
+        })
+        card.addView(newText(host, subtitle, 10.5f, AppColors.muted, AppFont.sans).apply {
+            setPadding(0, host.dp(6), 0, 0)
+        })
+
+        val averageText = when {
+            summary.avgCycle != null && summary.avgPeriod != null ->
+                "平均周期 ${summary.avgCycle} 天 · 平均经期 ${summary.avgPeriod} 天"
+            summary.avgCycle != null -> "平均周期 ${summary.avgCycle} 天"
+            else -> "再记录一次，就能看到平均周期。"
+        }
+        card.addView(newText(host, averageText, 10f, AppColors.faint, AppFont.sans).apply {
+            setPadding(0, host.dp(5), 0, 0)
+        })
+
         val cycleRow = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, host.dp(10), 0, 0)
+            setPadding(0, host.dp(9), 0, 0)
         }
         cycleRow.addView(newText(host, "周期长度 ${snapshot.cycleLength} 天", 10.5f, AppColors.muted, AppFont.sans),
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         cycleRow.addView(softAction(host, "修改") { editCycleLength(snapshot.cycleLength) })
-        summary.addView(cycleRow)
-        val sortedPeriods = snapshot.periods.sortedBy { it.startDay }
-        val intervals = sortedPeriods.zipWithNext { a, b -> b.startDay - a.startDay }
-            .filter { it in 15..60 }
-        val lengths = sortedPeriods.mapNotNull { period -> period.endDay?.let { it - period.startDay + 1 } }
-            .filter { it in 1..15 }
-        val avgCycle = intervals.takeIf { it.isNotEmpty() }?.average()?.toInt()
-        val avgPeriod = lengths.takeIf { it.isNotEmpty() }?.average()?.toInt()
-        summary.addView(newText(
-            host,
-            when {
-                avgCycle != null && avgPeriod != null -> "平均周期 $avgCycle 天 · 平均经期 $avgPeriod 天"
-                avgCycle != null -> "平均周期 $avgCycle 天"
-                else -> "再记录一次，就能看到平均周期。"
-            },
-            10f,
-            AppColors.faint,
-            AppFont.sans,
-        ).apply { setPadding(0, host.dp(6), 0, 0) })
+        card.addView(cycleRow)
+
+        if (latest != null) {
+            val cycleLength = snapshot.cycleLength.coerceAtLeast(1)
+            val cycleDay = (today - latest.startDay + 1).coerceAtLeast(1)
+            val ratio = ((today - latest.startDay).toFloat() / cycleLength).coerceIn(0f, 1f)
+            val next = latest.startDay + cycleLength
+            val progressHead = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, host.dp(10), 0, 0)
+            }
+            progressHead.addView(newText(host, "周期第 $cycleDay 天", 9.5f, AppColors.muted, AppFont.sans),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            progressHead.addView(newText(
+                host,
+                if (next > today) "预计 ${epochDate(next, "M月d日")}" else "预计时间已到",
+                9.5f,
+                AppColors.faint,
+                AppFont.sans,
+            ))
+            card.addView(progressHead)
+            val track = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                background = roundedDrawable(host, AppColors.line, 2f)
+            }
+            if (ratio > 0f) {
+                track.addView(View(host).apply {
+                    background = roundedDrawable(host, Color.rgb(168, 112, 118), 2f)
+                }, LinearLayout.LayoutParams(0, host.dp(4), ratio))
+            }
+            if (ratio < 1f) {
+                track.addView(View(host), LinearLayout.LayoutParams(0, host.dp(4), 1f - ratio))
+            }
+            card.addView(track, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                host.dp(4),
+            ).apply { topMargin = host.dp(6) })
+        }
+
         val actions = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, host.dp(5), 0, 0)
+            setPadding(0, host.dp(11), 0, 0)
         }
-        actions.addView(primaryAction(host, if (latest?.endDay == null) "记录新的开始" else "记录开始") {
+        actions.addView(primaryAction(host, if (latest != null && latest.endDay == null) "记录新的开始" else "记录开始") {
             pickPeriodStart()
         }, LinearLayout.LayoutParams(0, host.dp(44), 1f))
         actions.addView(secondaryAction(host, "今天结束", enabled = latest != null && latest.endDay == null) {
             endPeriod()
         }, LinearLayout.LayoutParams(0, host.dp(44), 1f).apply { marginStart = host.dp(8) })
-        summary.addView(actions)
-        content.addView(summary, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ))
+        card.addView(actions)
+        return card
+    }
 
-        content.addView(sectionLabel(host, "这几天，可以对自己好一点"), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(24) })
-        val tips = contentCard(host)
-        tips.addView(newText(
-            host,
-            "· 热敷小腹，或洗个热水澡，让身体慢慢放松。\n" +
-                "· 轻走、拉伸都可以；累了就休息，不必硬撑。\n" +
-                "· 多喝水，吃点含铁食物：瘦肉、豆类、深绿色蔬菜。\n" +
-                "· 疼痛可按说明书使用止痛药；有哮喘、胃/肝肾问题或正在服其他药，先咨询医生或药师；16 岁以下不要用阿司匹林。\n" +
-                "· 如果疼痛影响日常生活、出血量突然很大（例如每小时湿透一片）、经期超过 7 天，或伴发热、晕厥，请及时就医。\n" +
-                "· 记录症状和周期，就诊时更有帮助。",
-            10.8f,
-            AppColors.inkSoft,
-            AppFont.sans,
-        ).apply {
-            setLineSpacing(host.dpf(4.5f), 1f)
-        })
-        tips.addView(newText(
-            host,
-            "以上是一般生活建议，不替代医生诊断，也不用于避孕。参考 NHS 与 ACOG 公开资料。",
-            9f,
-            AppColors.faint,
-            AppFont.sans,
-        ).apply { setPadding(0, host.dp(10), 0, 0) })
-        content.addView(tips, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(10) })
-
-        content.addView(sectionLabel(host, "最近记录"), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(24) })
-        if (snapshot.periods.isEmpty()) {
-            return
+    private fun periodCalendarCard(
+        snapshot: WorkbenchSnapshot,
+        summary: PeriodSummary,
+        today: Long,
+    ): View {
+        val card = contentCard(host)
+        val head = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        val history = contentCard(host, 0)
-        snapshot.periods.take(8).forEachIndexed { index, period ->
-            if (index > 0) history.addView(cardDivider(host))
-            history.addView(periodRow(period), LinearLayout.LayoutParams(
+        head.addView(navArrow("‹", "上个月") {
+            periodMonth = periodMonth.minusMonths(1)
+            render(preserveScroll = false)
+        }, LinearLayout.LayoutParams(host.dp(32), host.dp(32)))
+        head.addView(newText(host, yearMonthLabel(periodMonth), 12.5f, AppColors.ink, AppFont.sansMedium).apply {
+            gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(0, host.dp(32), 1f))
+        head.addView(navArrow("›", "下个月") {
+            periodMonth = periodMonth.plusMonths(1)
+            render(preserveScroll = false)
+        }, LinearLayout.LayoutParams(host.dp(32), host.dp(32)))
+        if (periodMonth != YearMonth.now()) {
+            head.addView(softAction(host, "本月") {
+                periodMonth = YearMonth.now()
+                render(preserveScroll = false)
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, host.dp(32)).apply {
+                marginStart = host.dp(5)
+            })
+        }
+        card.addView(head)
+
+        val (actual, predicted) = periodCalendarDays(snapshot, summary, today)
+        val calendar = PeriodCalendarView(host).apply {
+            setData(periodMonth, actual, predicted, today)
+        }
+        card.addView(calendar, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(228),
+        ).apply { topMargin = host.dp(4) })
+
+        val legend = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, host.dp(3), 0, 0)
+        }
+        legend.addView(newText(host, "●", 9f, AppColors.cinnabar, AppFont.sans))
+        legend.addView(newText(host, " 经期   ", 8.8f, AppColors.faint, AppFont.sans))
+        legend.addView(newText(host, "○", 9f, AppColors.cinnabar, AppFont.sans))
+        legend.addView(newText(host, " 预计   ", 8.8f, AppColors.faint, AppFont.sans))
+        legend.addView(newText(host, "◎", 9f, AppColors.inkSoft, AppFont.sans))
+        legend.addView(newText(host, " 今天", 8.8f, AppColors.faint, AppFont.sans))
+        card.addView(legend)
+        return card
+    }
+
+    private fun periodCalendarDays(
+        snapshot: WorkbenchSnapshot,
+        summary: PeriodSummary,
+        today: Long,
+    ): Pair<Set<Long>, Set<Long>> {
+        val actual = mutableSetOf<Long>()
+        snapshot.periods.forEach { period ->
+            val end = (period.endDay ?: today).coerceAtMost(today)
+            if (period.startDay <= end) {
+                for (day in period.startDay..end) actual += day
+            }
+        }
+        val predicted = mutableSetOf<Long>()
+        val latest = snapshot.latestPeriod()
+        if (latest != null) {
+            val length = (summary.avgPeriod ?: 5).coerceIn(2, 10)
+            val starts = predictedStarts(latest.startDay, snapshot.cycleLength, today, 3)
+            starts.forEach { start ->
+                for (day in start until start + length) {
+                    if (day !in actual) predicted += day
+                }
+            }
+        }
+        return actual to predicted
+    }
+
+    private fun predictedStarts(latestStart: Long, cycleLength: Int, today: Long, count: Int): List<Long> {
+        val cycle = cycleLength.coerceAtLeast(1)
+        var next = latestStart + cycle
+        while (next < today - 7) next += cycle
+        return (0 until count).map { next + cycle.toLong() * it }
+    }
+
+    private fun periodAnalysisCard(
+        snapshot: WorkbenchSnapshot,
+        latest: PeriodRecord?,
+        summary: PeriodSummary,
+    ): View {
+        val card = contentCard(host)
+        val head = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        head.addView(newText(host, "周期分析", 10f, AppColors.muted, AppFont.sansMedium, 0.08f),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        head.addView(newText(host, "记录 ${snapshot.periods.size} 次", 9.5f, AppColors.faint, AppFont.sans))
+        card.addView(head)
+
+        fun statCell(label: String, value: String, unit: String = ""): View {
+            return LinearLayout(host).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, host.dp(9), host.dp(8), 0)
+                addView(newText(host, label, 9f, AppColors.faint, AppFont.sans))
+                val valueRow = LinearLayout(host).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.BOTTOM
+                    setPadding(0, host.dp(2), 0, 0)
+                }
+                valueRow.addView(newText(host, value, 20f, AppColors.ink, AppFont.serif).apply {
+                    includeFontPadding = false
+                })
+                if (unit.isNotBlank()) {
+                    valueRow.addView(newText(host, " $unit", 9f, AppColors.muted, AppFont.sans).apply {
+                        setPadding(0, 0, 0, host.dp(3))
+                    })
+                }
+                addView(valueRow)
+            }
+        }
+
+        val firstRow = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
+        firstRow.addView(statCell("平均周期", summary.avgCycle?.toString() ?: "—", "天"),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        firstRow.addView(statCell("平均经期", summary.avgPeriod?.toString() ?: "—", "天"),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        card.addView(firstRow)
+        val secondRow = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
+        secondRow.addView(statCell("规律度", summary.regularity),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val range = if (summary.minCycle != null && summary.maxCycle != null) {
+            "${summary.minCycle}–${summary.maxCycle}"
+        } else "—"
+        secondRow.addView(statCell("周期范围", range, "天"),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        card.addView(secondRow)
+
+        if (summary.intervals.isNotEmpty()) {
+            card.addView(newText(host,
+                "最近周期 " + summary.intervals.takeLast(6).joinToString(" · ") + " 天",
+                9.5f, AppColors.muted, AppFont.sans).apply {
+                setPadding(0, host.dp(9), 0, 0)
+            })
+        }
+        if (latest != null) {
+            val starts = predictedStarts(latest.startDay, snapshot.cycleLength, LocalDate.now().toEpochDay(), 3)
+            card.addView(newText(host,
+                "接下来三次预计：" + starts.joinToString("、") { epochDate(it, "M月d日") },
+                9.5f, AppColors.cinnabar, AppFont.sansMedium).apply {
+                setPadding(0, host.dp(9), 0, 0)
+            })
+        }
+        card.addView(newText(host,
+            "按你的记录和周期长度估算，仅供参考，不用于诊断或避孕。",
+            8.8f, AppColors.faint, AppFont.sans).apply {
+            setPadding(0, host.dp(6), 0, 0)
+        })
+        return card
+    }
+
+    private fun periodCareCard(latest: PeriodRecord?, today: Long, cycleLength: Int): View {
+        val card = contentCard(host)
+        val quote = periodQuotes[(today % periodQuotes.size).toInt()]
+        card.addView(newText(host, "今天想对你说", 9.5f, AppColors.muted, AppFont.sans, 0.08f))
+        card.addView(newText(host, quote, 16f, AppColors.ink, AppFont.serif).apply {
+            setPadding(0, host.dp(7), 0, 0)
+            setLineSpacing(host.dpf(4f), 1f)
+        })
+        val tips = periodCareTips(latest, today, cycleLength)
+        tips.forEach { tip ->
+            val row = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, host.dp(7), 0, 0)
+            }
+            row.addView(newText(host, "·", 12f, AppColors.cinnabar, AppFont.sans),
+                LinearLayout.LayoutParams(host.dp(12), ViewGroup.LayoutParams.WRAP_CONTENT))
+            row.addView(newText(host, tip, 10.3f, AppColors.inkSoft, AppFont.sans).apply {
+                setLineSpacing(host.dpf(2f), 1f)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            card.addView(row)
+        }
+        card.addView(softAction(host, "更多建议") {
+            showInfoDialog(
+                host,
+                "这几天，可以对自己好一点",
+                fullPeriodTips(),
+                "知道了",
+            )
+        }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            host.dp(34),
+        ).apply { topMargin = host.dp(7) })
+        return card
+    }
+
+    private fun periodCareTips(latest: PeriodRecord?, today: Long, cycleLength: Int): List<String> {
+        return when {
+            latest != null && latest.endDay == null -> listOf(
+                "热敷小腹，或洗个热水澡，让身体慢慢放松。",
+                "能躺就躺一会儿；轻走、拉伸也可以，不必硬撑。",
+                "多喝水，吃点含铁食物：瘦肉、豆类、深绿色蔬菜。",
+            )
+            latest != null && latest.startDay + cycleLength - today in 0..5L -> listOf(
+                "这几天把安排放松一点，给自己留些余地。",
+                "提前准备卫生用品、热水袋和舒服的衣服。",
+                "早点睡，少熬一点；情绪有起伏时先照顾自己。",
+            )
+            else -> listOf(
+                "记录周期，也记录身体的感觉，慢慢更懂自己。",
+                "保持轻走、拉伸和规律作息，不用追求完美。",
+                "有不确定的变化时，先观察，必要时咨询医生。",
+            )
+        }
+    }
+
+    private fun fullPeriodTips(): String =
+        "· 热敷小腹，或洗个热水澡，让身体慢慢放松。\n" +
+            "· 轻走、拉伸都可以；累了就休息，不必硬撑。\n" +
+            "· 多喝水，吃点含铁食物：瘦肉、豆类、深绿色蔬菜。\n" +
+            "· 疼痛可按说明书使用止痛药；有哮喘、胃/肝肾问题或正在服其他药，先咨询医生或药师；16 岁以下不要用阿司匹林。\n" +
+            "· 如果疼痛影响日常生活、出血量突然很大（例如每小时湿透一片）、经期超过 7 天，或伴发热、晕厥，请及时就医。\n" +
+            "· 记录症状和周期，就诊时更有帮助。\n\n" +
+            "以上是一般生活建议，不替代医生诊断，也不用于避孕。参考 NHS 与 ACOG 公开资料。"
+
+    private fun addPeriodHistory(snapshot: WorkbenchSnapshot, summary: PeriodSummary, today: Long) {
+        val header = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, host.dp(24), 0, 0)
+        }
+        header.addView(sectionLabel(host, "周期记录 · ${summary.sorted.size}"),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        if (summary.sorted.isNotEmpty()) {
+            header.addView(newText(host, "左滑删除", 9f, AppColors.faint, AppFont.sans))
+        }
+        content.addView(header)
+
+        if (summary.sorted.isEmpty()) {
+            content.addView(emptyCard("还没有周期记录。点「记录开始」，先记下这一次。"), LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-            ))
+            ).apply { topMargin = host.dp(10) })
+            return
         }
-        content.addView(history, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(10) })
+        summary.sorted.sortedByDescending { it.startDay }.forEach { period ->
+            val index = summary.sorted.indexOfFirst { it.id == period.id }
+            val previous = if (index > 0) summary.sorted[index - 1] else null
+            val row = periodCardRow(period, previous, today)
+            val swipe = SwipeToDeleteLayout(host).apply {
+                setCornerRadiusDp(18f)
+                setContent(row, fillHeight = false)
+                onDelete = { deletePeriod(period) }
+            }
+            content.addView(swipe, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(8) })
+        }
+    }
+
+    private fun periodCardRow(period: PeriodRecord, previous: PeriodRecord?, today: Long): View {
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(host.dp(15), host.dp(12), host.dp(15), host.dp(12))
+            background = roundedDrawable(host, AppColors.cream, 18f, 0.8f, AppColors.line)
+        }
+        row.addView(iconSeal(host, "期", Color.rgb(168, 112, 118), Color.rgb(246, 231, 230), 32),
+            LinearLayout.LayoutParams(host.dp(32), host.dp(32)))
+        val labels = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(host.dp(10), 0, host.dp(8), 0)
+        }
+        val range = if (period.endDay == null) {
+            "${epochDate(period.startDay, "M月d日")} · 进行中"
+        } else {
+            "${epochDate(period.startDay, "M月d日")} – ${epochDate(period.endDay, "M月d日")}"
+        }
+        labels.addView(newText(host, range, 12.5f, AppColors.ink, AppFont.sansMedium))
+        val meta = buildList {
+            previous?.let { add("周期 ${period.startDay - it.startDay} 天") }
+            val end = period.endDay
+            if (end == null) {
+                add("已持续 ${(today - period.startDay + 1).coerceAtLeast(1)} 天")
+            } else {
+                add("经期 ${end - period.startDay + 1} 天")
+            }
+        }.joinToString(" · ")
+        labels.addView(newText(host, meta, 9.5f, AppColors.faint, AppFont.sans).apply {
+            setPadding(0, host.dp(3), 0, 0)
+        })
+        row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        if (period.endDay == null) {
+            row.addView(newText(host, "进行中", 9f, AppColors.cinnabar, AppFont.sansMedium).apply {
+                setPadding(host.dp(7), host.dp(3), host.dp(7), host.dp(3))
+                background = roundedDrawable(host, AppColors.cinnabarSoft, 12f)
+            })
+        }
+        return row
+    }
+
+    private fun deletePeriod(record: PeriodRecord) {
+        WorkbenchStore.update(host) { data ->
+            data.copy(periods = data.periods.filterNot { it.id == record.id })
+        }
+        render(preserveScroll = true)
+        host.showActionNotice(
+            "已删除 ${epochDate(record.startDay, "M月d日")} 的周期记录",
+            "撤销",
+            5_200L,
+        ) {
+            WorkbenchStore.update(host) { data ->
+                if (data.periods.any { it.id == record.id }) data
+                else data.copy(periods = (data.periods + record).sortedByDescending { it.startDay })
+            }
+            periodMonth = YearMonth.from(LocalDate.ofEpochDay(record.startDay))
+            render(preserveScroll = true)
+            host.showNotice("已恢复这次记录")
+        }
+    }
+
+    private fun periodSummary(snapshot: WorkbenchSnapshot): PeriodSummary {
+        val sorted = snapshot.periods.sortedBy { it.startDay }
+        val intervals = sorted.zipWithNext { a, b -> b.startDay - a.startDay }.filter { it in 15..60 }
+        val lengths = sorted.mapNotNull { period -> period.endDay?.let { it - period.startDay + 1 } }
+            .filter { it in 1..15 }
+        val avgCycle = intervals.takeIf { it.isNotEmpty() }?.average()?.toInt()
+        val avgPeriod = lengths.takeIf { it.isNotEmpty() }?.average()?.toInt()
+        val minCycle = intervals.minOrNull()?.toInt()
+        val maxCycle = intervals.maxOrNull()?.toInt()
+        val regularity = when {
+            intervals.size < 2 -> "记录中"
+            maxCycle != null && minCycle != null && maxCycle - minCycle <= 3 -> "较规律"
+            maxCycle != null && minCycle != null && maxCycle - minCycle <= 7 -> "有波动"
+            else -> "波动较大"
+        }
+        return PeriodSummary(sorted, intervals, lengths, avgCycle, avgPeriod, minCycle, maxCycle, regularity)
     }
 
     private fun secondaryAction(
@@ -1561,6 +1941,7 @@ class RecordsView(
                         )
                         data.copy(periods = periods.sortedByDescending { it.startDay })
                     }
+                    periodMonth = YearMonth.from(LocalDate.ofEpochDay(start))
                     host.showNotice("已经记下这次开始")
                     render(preserveScroll = false)
                 }
@@ -1607,29 +1988,6 @@ class RecordsView(
             render(preserveScroll = false)
             true
         }
-    }
-
-    private fun periodRow(period: PeriodRecord): View {
-        val row = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(host.dp(16), host.dp(12), host.dp(16), host.dp(12))
-        }
-        row.addView(iconSeal(host, "期", Color.rgb(168, 112, 118), Color.rgb(246, 231, 230), 32))
-        val labels = LinearLayout(host).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(host.dp(10), 0, 0, 0)
-        }
-        labels.addView(newText(host, epochDate(period.startDay, "M月d日"), 12.5f, AppColors.ink, AppFont.sansMedium))
-        labels.addView(newText(
-            host,
-            if (period.endDay == null) "记录中" else "至 ${epochDate(period.endDay, "M月d日")}",
-            9.5f,
-            if (period.endDay == null) AppColors.cinnabar else AppColors.faint,
-            AppFont.sans,
-        ).apply { setPadding(0, host.dp(3), 0, 0) })
-        row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        return row
     }
 
     // ----------------------------------------------------------------- wishes

@@ -25,6 +25,7 @@ import com.nianri.app.data.WishItem
 import com.nianri.app.data.WorkbenchSnapshot
 import com.nianri.app.data.WorkbenchStore
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToLong
@@ -41,6 +42,8 @@ enum class RecordsTab(val label: String) {
         fun fromIndex(index: Int): RecordsTab = entries.getOrElse(index) { DIARY }
     }
 }
+
+private enum class LedgerMode { MONTH, YEAR }
 
 class RecordsView(
     private val host: MainActivity,
@@ -60,11 +63,9 @@ class RecordsView(
     private var diaryMood: String? = null
     private val diaryMoodViews = mutableListOf<Pair<TextView, MoodOption>>()
 
-    private var ledgerIncome = false
-    private var ledgerCategory = "餐饮"
-    private lateinit var ledgerTypeExpense: TextView
-    private lateinit var ledgerTypeIncome: TextView
-    private lateinit var ledgerCategoryRow: LinearLayout
+    private var ledgerMode = LedgerMode.MONTH
+    private var ledgerMonth: YearMonth = YearMonth.now()
+    private var ledgerYear: Int = LocalDate.now().year
 
     init {
         background = android.graphics.drawable.ColorDrawable(AppColors.paper)
@@ -301,6 +302,7 @@ class RecordsView(
         if (diary.isEmpty()) {
             return
         }
+        addDiaryMonthlyStats(diary)
         content.addView(sectionLabel(host, "最近"), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -314,6 +316,55 @@ class RecordsView(
             ))
         }
         content.addView(list, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
+    }
+
+    private fun addDiaryMonthlyStats(diary: List<DiaryEntry>) {
+        val monthStart = LocalDate.now().withDayOfMonth(1).toEpochDay()
+        val monthEntries = diary.filter { it.epochDay >= monthStart }
+        val days = monthEntries.map { it.epochDay }.distinct().size
+        content.addView(sectionLabel(host, "这个月"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(24) })
+        val card = contentCard(host)
+        val head = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        head.addView(newText(host, "${monthEntries.size}", 29f, AppColors.cinnabar, AppFont.serif).apply {
+            includeFontPadding = false
+        })
+        head.addView(newText(host, " 篇 · 记录了 $days 天", 10.5f, AppColors.muted, AppFont.sans).apply {
+            setPadding(host.dp(7), 0, 0, host.dp(3))
+        })
+        card.addView(head)
+        val counts = monthEntries.mapNotNull { it.moodKey }.groupingBy { it }.eachCount()
+        if (counts.isEmpty()) {
+            card.addView(newText(host, "这个月还没有记录心情。", 10f, AppColors.faint, AppFont.sans).apply {
+                setPadding(0, host.dp(7), 0, 0)
+            })
+        } else {
+            val moodRow = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, host.dp(8), 0, 0)
+            }
+            WorkbenchMood.all.forEach { mood ->
+                val count = counts[mood.key] ?: 0
+                if (count > 0) {
+                    moodRow.addView(simpleChip(host, "${mood.label} $count", moodChipColor(mood), mood.color),
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ).apply { marginEnd = host.dp(5) })
+                }
+            }
+            card.addView(moodRow)
+        }
+        content.addView(card, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = host.dp(10) })
@@ -447,6 +498,39 @@ class RecordsView(
             AppColors.faint,
             AppFont.sans,
         ).apply { setPadding(0, host.dp(5), 0, 0) })
+
+        if (plans.isNotEmpty()) {
+            val weekStart = today - 6
+            val weekDone = plans.sumOf { plan -> plan.checkedDays.count { it in weekStart..today } }
+            val weekTotal = plans.size * 7
+            val weekRatio = (weekDone.toFloat() / weekTotal).coerceIn(0f, 1f)
+            val weekRow = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, host.dp(10), 0, 0)
+            }
+            weekRow.addView(newText(host, "近 7 天", 10f, AppColors.muted, AppFont.sans),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            weekRow.addView(newText(host, "$weekDone / $weekTotal 次", 10f,
+                if (weekDone > 0) AppColors.cinnabar else AppColors.faint, AppFont.sansMedium))
+            summary.addView(weekRow)
+            val weekTrack = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                background = roundedDrawable(host, AppColors.line, 2f)
+            }
+            if (weekRatio > 0f) {
+                weekTrack.addView(View(host).apply {
+                    background = roundedDrawable(host, AppColors.cinnabar, 2f)
+                }, LinearLayout.LayoutParams(0, host.dp(4), weekRatio))
+            }
+            if (weekRatio < 1f) {
+                weekTrack.addView(View(host), LinearLayout.LayoutParams(0, host.dp(4), 1f - weekRatio))
+            }
+            summary.addView(weekTrack, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                host.dp(4),
+            ).apply { topMargin = host.dp(6) })
+        }
 
         val addRow = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -607,212 +691,490 @@ class RecordsView(
     // ---------------------------------------------------------------- ledger
 
     private fun buildLedger(snapshot: WorkbenchSnapshot) {
-        val today = LocalDate.now()
-        val monthStart = today.withDayOfMonth(1).toEpochDay()
-        val expense = snapshot.ledger.filter { !it.income && it.epochDay >= monthStart }.sumOf { it.amountCents }
-        val income = snapshot.ledger.filter { it.income && it.epochDay >= monthStart }.sumOf { it.amountCents }
-        val summary = contentCard(host)
-        summary.addView(newText(host, "本月支出", 10f, AppColors.muted, AppFont.sansMedium, 0.08f))
-        summary.addView(newText(host, formatMoney(expense), 31f, AppColors.ink, AppFont.serif).apply {
-            setPadding(0, host.dp(4), 0, 0)
-            includeFontPadding = false
-        })
-        summary.addView(newText(
-            host,
-            "收入 ${formatMoney(income)}   ·   结余 ${formatMoney(income - expense)}",
-            10.5f,
-            AppColors.muted,
-            AppFont.sans,
-        ).apply { setPadding(0, host.dp(6), 0, 0) })
-        content.addView(summary, LinearLayout.LayoutParams(
+        content.addView(ledgerModeBar(), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
+        content.addView(ledgerPeriodBar(), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
 
-        val form = contentCard(host)
-        form.addView(newText(host, "记一笔", 14f, AppColors.ink, AppFont.sansMedium))
-        val typeRow = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, host.dp(10), 0, 0)
+        when (ledgerMode) {
+            LedgerMode.MONTH -> buildMonthLedger(snapshot)
+            LedgerMode.YEAR -> buildYearLedger(snapshot)
         }
-        ledgerTypeExpense = typePill("支出", !ledgerIncome) { setLedgerType(false) }
-        ledgerTypeIncome = typePill("收入", ledgerIncome) { setLedgerType(true) }
-        typeRow.addView(ledgerTypeExpense, LinearLayout.LayoutParams(0, host.dp(36), 1f).apply {
-            marginEnd = host.dp(6)
-        })
-        typeRow.addView(ledgerTypeIncome, LinearLayout.LayoutParams(0, host.dp(36), 1f))
-        form.addView(typeRow)
-        val amount = textInput(
-            host,
-            "金额（元）",
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL,
-        )
-        form.addView(amount, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            host.dp(48),
-        ).apply { topMargin = host.dp(10) })
-        ledgerCategoryRow = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, host.dp(9), 0, 0)
-        }
-        form.addView(ledgerCategoryRow)
-        buildLedgerCategories()
-        val note = textInput(host, "备注（可选）")
-        form.addView(note, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            host.dp(48),
-        ).apply { topMargin = host.dp(9) })
-        val save = primaryAction(host, "保存这一笔") {
-            val value = amount.text.toString().trim().replace(',', '.').toDoubleOrNull()
-            if (value == null || value <= 0) {
-                host.showNotice("先填一个大于 0 的金额")
-                return@primaryAction
-            }
-            if (value > 10_000_000) {
-                host.showNotice("金额太大了，确认一下再记")
-                return@primaryAction
-            }
-            val cents = (value * 100).roundToLong()
-            val entry = LedgerEntry(
-                id = WorkbenchStore.newId(),
-                epochDay = LocalDate.now().toEpochDay(),
-                income = ledgerIncome,
-                amountCents = cents,
-                category = ledgerCategory,
-                note = note.text.toString().trim(),
-            )
-            WorkbenchStore.update(host) { data ->
-                data.copy(ledger = (data.ledger + entry).sortedByDescending { it.epochDay })
-            }
-            host.showNotice(if (ledgerIncome) "记下一笔收入" else "记下一笔支出")
-            render(preserveScroll = false)
-        }
-        form.addView(save, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            host.dp(46),
-        ).apply { topMargin = host.dp(10) })
-        content.addView(form, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(12) })
-
-        if (snapshot.ledger.isEmpty()) {
-            return
-        }
-        content.addView(sectionLabel(host, "最近"), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(24) })
-        val list = contentCard(host, 0)
-        snapshot.ledger.take(40).forEachIndexed { index, entry ->
-            if (index > 0) list.addView(cardDivider(host))
-            list.addView(ledgerRow(entry), LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ))
-        }
-        content.addView(list, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(10) })
     }
 
-    private fun typePill(label: String, selected: Boolean, onClick: () -> Unit): TextView {
-        return newText(
-            host,
-            label,
-            12f,
-            if (selected) AppColors.cinnabar else AppColors.muted,
-            if (selected) AppFont.sansMedium else AppFont.sans,
-        ).apply {
+    private fun ledgerModeBar(): View {
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val segment = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(host.dp(3), host.dp(3), host.dp(3), host.dp(3))
+            background = roundedDrawable(host, AppColors.paperDeep, 18f)
+        }
+        listOf("月账单" to LedgerMode.MONTH, "年账单" to LedgerMode.YEAR).forEachIndexed { index, (label, mode) ->
+            val selected = ledgerMode == mode
+            val tab = newText(
+                host,
+                label,
+                12f,
+                if (selected) AppColors.ink else AppColors.muted,
+                if (selected) AppFont.sansMedium else AppFont.sans,
+            ).apply {
+                gravity = Gravity.CENTER
+                isClickable = true
+                isFocusable = true
+                background = if (selected) {
+                    roundedDrawable(host, AppColors.cream, 15f, 0.8f, AppColors.line)
+                } else {
+                    roundedDrawable(host, Color.TRANSPARENT, 15f)
+                }
+                setOnClickListener {
+                    if (ledgerMode != mode) {
+                        if (mode == LedgerMode.YEAR) ledgerYear = ledgerMonth.year
+                        if (mode == LedgerMode.MONTH) ledgerMonth = YearMonth.of(ledgerYear, ledgerMonth.monthValue)
+                        ledgerMode = mode
+                        render(preserveScroll = false)
+                    }
+                }
+            }
+            segment.addView(tab, LinearLayout.LayoutParams(
+                0,
+                host.dp(34),
+                1f,
+            ).apply { if (index == 0) marginEnd = host.dp(3) })
+        }
+        row.addView(segment, LinearLayout.LayoutParams(0, host.dp(40), 1f))
+        row.addView(softAction(host, "＋ 记一笔") { openLedgerEditor(null) }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            host.dp(40),
+        ).apply { marginStart = host.dp(8) })
+        return row
+    }
+
+    private fun ledgerPeriodBar(): View {
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val isMonth = ledgerMode == LedgerMode.MONTH
+        val label = if (isMonth) yearMonthLabel(ledgerMonth) else "${ledgerYear} 年"
+        val prev = navArrow("‹", if (isMonth) "上个月" else "上一年") {
+            if (isMonth) {
+                ledgerMonth = ledgerMonth.minusMonths(1)
+                ledgerYear = ledgerMonth.year
+            } else {
+                ledgerYear--
+                ledgerMonth = YearMonth.of(ledgerYear, ledgerMonth.monthValue)
+            }
+            render(preserveScroll = false)
+        }
+        val next = navArrow("›", if (isMonth) "下个月" else "下一年") {
+            if (isMonth) {
+                ledgerMonth = ledgerMonth.plusMonths(1)
+                ledgerYear = ledgerMonth.year
+            } else {
+                ledgerYear++
+                ledgerMonth = YearMonth.of(ledgerYear, ledgerMonth.monthValue)
+            }
+            render(preserveScroll = false)
+        }
+        row.addView(prev, LinearLayout.LayoutParams(host.dp(34), host.dp(34)))
+        row.addView(newText(host, label, 13.5f, AppColors.ink, AppFont.sansMedium).apply {
+            gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(0, host.dp(34), 1f))
+        row.addView(next, LinearLayout.LayoutParams(host.dp(34), host.dp(34)))
+        val now = LocalDate.now()
+        val isCurrent = if (isMonth) ledgerMonth == YearMonth.from(now) else ledgerYear == now.year
+        if (!isCurrent) {
+            row.addView(softAction(host, if (isMonth) "本月" else "今年") {
+                if (isMonth) ledgerMonth = YearMonth.from(now) else ledgerYear = now.year
+                render(preserveScroll = false)
+            }, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                host.dp(34),
+            ).apply { marginStart = host.dp(6) })
+        }
+        return row
+    }
+
+    private fun navArrow(label: String, description: String, onClick: () -> Unit): TextView {
+        return newText(host, label, 23f, AppColors.inkSoft, AppFont.serif).apply {
             gravity = Gravity.CENTER
             isClickable = true
             isFocusable = true
+            contentDescription = description
             background = rippleOn(
                 host,
-                roundedDrawable(
-                    host,
-                    if (selected) AppColors.cinnabarSoft else Color.TRANSPARENT,
-                    16f,
-                    if (selected) 0f else 0.8f,
-                    if (selected) Color.TRANSPARENT else AppColors.line,
-                ),
-                0x1FB05238,
+                roundedDrawable(host, AppColors.cream, 17f, 0.8f, AppColors.line),
+                0x1427231E,
             )
             setOnClickListener { onClick() }
         }
     }
 
-    private fun setLedgerType(income: Boolean) {
-        if (ledgerIncome == income) return
-        ledgerIncome = income
-        ledgerCategory = ledgerCategories().first()
-        refreshLedgerTypeStyles()
-        buildLedgerCategories()
+    private fun buildMonthLedger(snapshot: WorkbenchSnapshot) {
+        val entries = snapshot.ledger.inMonth(ledgerMonth).sortedByDescending { it.epochDay }
+        val expense = entries.expenseTotal()
+        val income = entries.incomeTotal()
+        content.addView(ledgerSummaryCard("${ledgerMonth.monthValue} 月支出", expense, income, entries.size),
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(10) })
+
+        if (entries.isEmpty()) {
+            content.addView(emptyLedgerCard(), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(12) })
+            return
+        }
+
+        val expenseEntries = entries.filter { !it.income }
+        if (expenseEntries.isNotEmpty()) {
+            content.addView(sectionLabel(host, "支出分类"), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(24) })
+            content.addView(categoryBreakdownCard(expenseEntries, income = false), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(10) })
+        }
+        val incomeEntries = entries.filter { it.income }
+        if (incomeEntries.isNotEmpty()) {
+            content.addView(sectionLabel(host, "收入分类"), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(24) })
+            content.addView(categoryBreakdownCard(incomeEntries, income = true), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(10) })
+        }
+
+        content.addView(sectionLabel(host, "流水 · ${entries.size} 笔"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(24) })
+        content.addView(ledgerFlowCard(entries), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
     }
 
-    private fun refreshLedgerTypeStyles() {
-        styleTypePill(ledgerTypeExpense, !ledgerIncome)
-        styleTypePill(ledgerTypeIncome, ledgerIncome)
+    private fun buildYearLedger(snapshot: WorkbenchSnapshot) {
+        val entries = snapshot.ledger.inYear(ledgerYear).sortedByDescending { it.epochDay }
+        val expense = entries.expenseTotal()
+        val income = entries.incomeTotal()
+        content.addView(ledgerSummaryCard("${ledgerYear} 年支出", expense, income, entries.size),
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(10) })
+
+        val monthValues = (1..12).map { month ->
+            entries.filter { LocalDate.ofEpochDay(it.epochDay).monthValue == month }.expenseTotal()
+        }
+        val chartCard = contentCard(host)
+        val head = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        head.addView(newText(host, "每月支出", 10f, AppColors.muted, AppFont.sansMedium, 0.08f),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val average = if (entries.isEmpty()) 0L else expense / 12
+        head.addView(newText(host, "月均 ${formatMoney(average)}", 10f, AppColors.muted, AppFont.sans))
+        chartCard.addView(head)
+        val chart = LedgerYearChartView(host).apply {
+            setValues(monthValues, if (ledgerYear == LocalDate.now().year) LocalDate.now().monthValue else null)
+        }
+        chartCard.addView(chart, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(158),
+        ).apply { topMargin = host.dp(8) })
+        content.addView(chartCard, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(12) })
+
+        if (entries.isNotEmpty()) {
+            content.addView(sectionLabel(host, "全年支出分类"), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(24) })
+            content.addView(categoryBreakdownCard(entries.filter { !it.income }, income = false),
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = host.dp(10) })
+        }
+
+        content.addView(sectionLabel(host, "月度明细"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(24) })
+        content.addView(yearMonthsCard(entries), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
     }
 
-    private fun styleTypePill(view: TextView, selected: Boolean) {
-        view.setTextColor(if (selected) AppColors.cinnabar else AppColors.muted)
-        view.typeface = if (selected) AppFont.sansMedium else AppFont.sans
-        view.background = rippleOn(
-            host,
-            roundedDrawable(
-                host,
-                if (selected) AppColors.cinnabarSoft else Color.TRANSPARENT,
-                16f,
-                if (selected) 0f else 0.8f,
-                if (selected) Color.TRANSPARENT else AppColors.line,
-            ),
-            0x1FB05238,
-        )
+    private fun ledgerSummaryCard(label: String, expense: Long, income: Long, count: Int): View {
+        val summary = contentCard(host)
+        val head = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        head.addView(newText(host, label, 10f, AppColors.muted, AppFont.sansMedium, 0.08f),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        head.addView(newText(host, "$count 笔", 9.5f, AppColors.faint, AppFont.sans))
+        summary.addView(head)
+        summary.addView(newText(host, formatMoney(expense), 31f, AppColors.ink, AppFont.serif).apply {
+            setPadding(0, host.dp(4), 0, 0)
+            includeFontPadding = false
+        })
+        val line = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, host.dp(7), 0, 0)
+        }
+        line.addView(newText(host, "收入 ${formatMoney(income)}", 10.5f, AppColors.sage, AppFont.sans))
+        line.addView(newText(host, "  ·  结余 ${formatMoney(income - expense)}", 10.5f, AppColors.muted, AppFont.sans))
+        summary.addView(line)
+        return summary
     }
 
-    private fun ledgerCategories(): List<String> = if (ledgerIncome) {
-        listOf("工资", "红包", "其他")
-    } else {
-        listOf("餐饮", "交通", "购物", "生活", "其他")
+    private fun emptyLedgerCard(): View {
+        val card = contentCard(host)
+        card.addView(newText(host, "这个${if (ledgerMode == LedgerMode.MONTH) "月" else "年"}还没有记账",
+            19f, AppColors.ink, AppFont.serif))
+        card.addView(newText(host, "记下第一笔，月底就能看见钱都去了哪里。", 10.5f, AppColors.muted, AppFont.sans)
+            .apply { setPadding(0, host.dp(6), 0, 0) })
+        val action = primaryAction(host, "记下第一笔") { openLedgerEditor(null) }
+        card.addView(action, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(44),
+        ).apply { topMargin = host.dp(12) })
+        return card
     }
 
-    private fun buildLedgerCategories() {
-        if (!::ledgerCategoryRow.isInitialized) return
-        ledgerCategoryRow.removeAllViews()
-        ledgerCategories().forEachIndexed { index, category ->
-            val chip = categoryChip(host, category, category == ledgerCategory) {
-                ledgerCategory = category
-                buildLedgerCategories()
+    private fun categoryBreakdownCard(entries: List<LedgerEntry>, income: Boolean): View {
+        val card = contentCard(host, 0)
+        val grouped = entries.groupBy { it.category }
+            .mapValues { (_, list) -> list.sumOf { it.amountCents } }
+            .toList()
+            .sortedByDescending { it.second }
+        val total = grouped.sumOf { it.second }.coerceAtLeast(1)
+        grouped.forEachIndexed { index, (category, amount) ->
+            if (index > 0) card.addView(cardDivider(host))
+            val option = LedgerCategories.option(category, income)
+            val wrapper = LinearLayout(host).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(host.dp(16), host.dp(11), host.dp(16), host.dp(9))
             }
-            ledgerCategoryRow.addView(chip, LinearLayout.LayoutParams(0, host.dp(32), 1f).apply {
-                if (index < ledgerCategories().lastIndex) marginEnd = host.dp(4)
+            val top = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            top.addView(View(host).apply {
+                background = roundedDrawable(host, option.color, 4f)
+            }, LinearLayout.LayoutParams(host.dp(8), host.dp(8)))
+            top.addView(newText(host, option.label, 12f, AppColors.ink, AppFont.sansMedium).apply {
+                setPadding(host.dp(8), 0, 0, 0)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            top.addView(newText(host, formatMoney(amount), 11.5f, AppColors.inkSoft, AppFont.sansMedium))
+            wrapper.addView(top)
+            val percent = (amount.toFloat() / total).coerceIn(0f, 1f)
+            val track = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                background = roundedDrawable(host, AppColors.line, 2f)
+            }
+            if (percent > 0f) {
+                track.addView(View(host).apply {
+                    background = roundedDrawable(host, option.color, 2f)
+                }, LinearLayout.LayoutParams(0, host.dp(4), percent))
+            }
+            if (percent < 1f) {
+                track.addView(View(host), LinearLayout.LayoutParams(0, host.dp(4), 1f - percent))
+            }
+            wrapper.addView(track, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                host.dp(4),
+            ).apply { topMargin = host.dp(7) })
+            card.addView(wrapper, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+        }
+        return card
+    }
+
+    private fun ledgerFlowCard(entries: List<LedgerEntry>): View {
+        val card = contentCard(host, 0)
+        val groups = entries.groupBy { it.epochDay }
+        var firstGroup = true
+        groups.forEach { (day, dayEntries) ->
+            if (!firstGroup) {
+                card.addView(View(host).apply { setBackgroundColor(AppColors.line) }, LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    host.dp(1),
+                ))
+            }
+            firstGroup = false
+            val dayExpense = dayEntries.filter { !it.income }.sumOf { it.amountCents }
+            val dayIncome = dayEntries.filter { it.income }.sumOf { it.amountCents }
+            val head = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(host.dp(16), host.dp(11), host.dp(16), host.dp(3))
+            }
+            head.addView(newText(host, epochDate(day, "M月d日 · EEEE"), 10f, AppColors.muted, AppFont.sans),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            val dayText = when {
+                dayExpense > 0 && dayIncome > 0 -> "支出 ${formatMoney(dayExpense)} · 收入 ${formatMoney(dayIncome)}"
+                dayExpense > 0 -> "支出 ${formatMoney(dayExpense)}"
+                dayIncome > 0 -> "收入 ${formatMoney(dayIncome)}"
+                else -> ""
+            }
+            head.addView(newText(host, dayText, 9f, AppColors.faint, AppFont.sans))
+            card.addView(head)
+            dayEntries.forEachIndexed { index, entry ->
+                if (index > 0) card.addView(cardDivider(host).apply {
+                    setPadding(host.dp(16), 0, host.dp(16), 0)
+                })
+                card.addView(ledgerRow(entry), LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ))
+            }
+        }
+        return card
+    }
+
+    private fun yearMonthsCard(entries: List<LedgerEntry>): View {
+        val card = contentCard(host, 0)
+        val now = LocalDate.now()
+        (1..12).forEach { month ->
+            if (month > 1) card.addView(cardDivider(host))
+            val monthEntries = entries.filter { LocalDate.ofEpochDay(it.epochDay).monthValue == month }
+            val monthExpense = monthEntries.expenseTotal()
+            val monthIncome = monthEntries.incomeTotal()
+            val isNow = ledgerYear == now.year && month == now.monthValue
+            val row = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(host.dp(16), host.dp(11), host.dp(16), host.dp(11))
+                isClickable = true
+                isFocusable = true
+                background = rippleOn(host, roundedDrawable(host, Color.TRANSPARENT, 16f), 0x1427231E)
+                setOnClickListener {
+                    ledgerMonth = YearMonth.of(ledgerYear, month)
+                    ledgerMode = LedgerMode.MONTH
+                    render(preserveScroll = false)
+                }
+            }
+            row.addView(newText(host, "$month 月", 11.5f,
+                if (isNow) AppColors.cinnabar else AppColors.inkSoft,
+                if (isNow) AppFont.sansMedium else AppFont.sans))
+            row.addView(newText(host,
+                when {
+                    monthEntries.isEmpty() -> "没有记录"
+                    monthExpense > 0 && monthIncome > 0 -> "支出 ${formatMoney(monthExpense)} · 收入 ${formatMoney(monthIncome)}"
+                    monthExpense > 0 -> "支出 ${formatMoney(monthExpense)}"
+                    else -> "收入 ${formatMoney(monthIncome)}"
+                },
+                10.5f,
+                if (monthEntries.isEmpty()) AppColors.faint else AppColors.muted,
+                AppFont.sans,
+            ).apply { gravity = Gravity.END }, LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f,
+            ))
+            row.addView(newText(host, "›", 17f, AppColors.faint, AppFont.serif).apply {
+                setPadding(host.dp(7), 0, 0, 0)
             })
+            card.addView(row)
+        }
+        return card
+    }
+
+    private fun openLedgerEditor(entry: LedgerEntry?) {
+        val now = LocalDate.now()
+        val defaultDay = when {
+            entry != null -> entry.epochDay
+            ledgerMode == LedgerMode.MONTH && ledgerMonth != YearMonth.from(now) -> ledgerMonth.atDay(1).toEpochDay()
+            ledgerMode == LedgerMode.YEAR && ledgerYear != now.year -> LocalDate.of(ledgerYear, 1, 1).toEpochDay()
+            else -> now.toEpochDay()
+        }
+        val draft = if (entry == null) {
+            LedgerDraft(epochDay = defaultDay, category = "餐饮")
+        } else {
+            LedgerDraft(
+                id = entry.id,
+                income = entry.income,
+                amountCents = entry.amountCents,
+                category = entry.category,
+                epochDay = entry.epochDay,
+                note = entry.note,
+            )
+        }
+        showLedgerEditorDialog(host, draft) { result ->
+            val saved = LedgerEntry(
+                id = result.id ?: WorkbenchStore.newId(),
+                epochDay = result.epochDay,
+                income = result.income,
+                amountCents = result.amountCents,
+                category = result.category,
+                note = result.note,
+            )
+            WorkbenchStore.update(host) { data ->
+                data.copy(ledger = (data.ledger.filterNot { it.id == saved.id } + saved)
+                    .sortedByDescending { it.epochDay })
+            }
+            ledgerMode = LedgerMode.MONTH
+            ledgerMonth = YearMonth.from(LocalDate.ofEpochDay(saved.epochDay))
+            host.showNotice(if (entry == null) "记好了" else "改好了")
+            render(preserveScroll = false)
         }
     }
 
     private fun ledgerRow(entry: LedgerEntry): View {
+        val option = LedgerCategories.option(entry.category, entry.income)
         val row = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(host.dp(16), host.dp(12), host.dp(12), host.dp(12))
+            setPadding(host.dp(14), host.dp(10), host.dp(10), host.dp(10))
+            isClickable = true
+            isFocusable = true
+            contentDescription = "编辑${entry.category}这笔记录"
+            background = rippleOn(host, roundedDrawable(host, Color.TRANSPARENT, 16f), 0x1427231E)
+            setOnClickListener { openLedgerEditor(entry) }
         }
+        row.addView(iconSeal(host, entry.category.take(1), option.color, option.soft, 32),
+            LinearLayout.LayoutParams(host.dp(32), host.dp(32)))
         val labels = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(host.dp(10), 0, host.dp(8), 0)
         }
         labels.addView(newText(host, entry.category, 12.5f, AppColors.ink, AppFont.sansMedium))
-        val note = entry.note.ifBlank { epochDate(entry.epochDay, "M月d日") }
-        labels.addView(newText(host, note, 9.5f, AppColors.faint, AppFont.sans).apply {
-            setPadding(0, host.dp(3), 0, 0)
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-        })
+        if (entry.note.isNotBlank()) {
+            labels.addView(newText(host, entry.note, 9.5f, AppColors.faint, AppFont.sans).apply {
+                setPadding(0, host.dp(3), 0, 0)
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            })
+        }
         row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(newText(
             host,
             (if (entry.income) "+" else "-") + formatMoney(entry.amountCents),
-            13f,
+            12.5f,
             if (entry.income) AppColors.sage else AppColors.cinnabar,
             AppFont.sansMedium,
         ))
@@ -834,7 +1196,7 @@ class RecordsView(
                     render(preserveScroll = true)
                 }
             }
-        }, LinearLayout.LayoutParams(host.dp(17), host.dp(17)).apply { marginStart = host.dp(10) })
+        }, LinearLayout.LayoutParams(host.dp(17), host.dp(17)).apply { marginStart = host.dp(9) })
         return row
     }
 
@@ -882,6 +1244,24 @@ class RecordsView(
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         cycleRow.addView(softAction(host, "修改") { editCycleLength(snapshot.cycleLength) })
         summary.addView(cycleRow)
+        val sortedPeriods = snapshot.periods.sortedBy { it.startDay }
+        val intervals = sortedPeriods.zipWithNext { a, b -> b.startDay - a.startDay }
+            .filter { it in 15..60 }
+        val lengths = sortedPeriods.mapNotNull { period -> period.endDay?.let { it - period.startDay + 1 } }
+            .filter { it in 1..15 }
+        val avgCycle = intervals.takeIf { it.isNotEmpty() }?.average()?.toInt()
+        val avgPeriod = lengths.takeIf { it.isNotEmpty() }?.average()?.toInt()
+        summary.addView(newText(
+            host,
+            when {
+                avgCycle != null && avgPeriod != null -> "平均周期 $avgCycle 天 · 平均经期 $avgPeriod 天"
+                avgCycle != null -> "平均周期 $avgCycle 天"
+                else -> "再记录一次，就能看到平均周期。"
+            },
+            10f,
+            AppColors.faint,
+            AppFont.sans,
+        ).apply { setPadding(0, host.dp(6), 0, 0) })
         val actions = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, host.dp(5), 0, 0)
@@ -1084,6 +1464,25 @@ class RecordsView(
             AppColors.muted,
             AppFont.sans,
         ).apply { setPadding(0, host.dp(5), 0, 0) })
+        if (snapshot.wishes.isNotEmpty()) {
+            val ratio = (done.toFloat() / snapshot.wishes.size).coerceIn(0f, 1f)
+            val track = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                background = roundedDrawable(host, AppColors.line, 2f)
+            }
+            if (ratio > 0f) {
+                track.addView(View(host).apply {
+                    background = roundedDrawable(host, AppColors.cinnabar, 2f)
+                }, LinearLayout.LayoutParams(0, host.dp(4), ratio))
+            }
+            if (ratio < 1f) {
+                track.addView(View(host), LinearLayout.LayoutParams(0, host.dp(4), 1f - ratio))
+            }
+            summary.addView(track, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                host.dp(4),
+            ).apply { topMargin = host.dp(10) })
+        }
         content.addView(summary, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,

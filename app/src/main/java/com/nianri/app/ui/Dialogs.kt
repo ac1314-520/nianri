@@ -21,6 +21,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import com.nianri.app.MainActivity
 import com.nianri.app.R
 import com.nianri.app.update.UpdateInfo
 import java.time.LocalDate
@@ -744,6 +745,207 @@ fun showInstallReadyDialog(
         onInstall()
     }
     card.addView(buttonRow(context, cancel, install))
+    dialog.setContentView(card)
+    dialog.show()
+}
+
+
+fun showLedgerEditorDialog(
+    context: MainActivity,
+    draft: LedgerDraft?,
+    onSave: (LedgerDraft) -> Unit,
+) {
+    var income = draft?.income ?: false
+    var category = LedgerCategories.normalize(draft?.category ?: "餐饮", income)
+    var epochDay = draft?.epochDay ?: LocalDate.now().toEpochDay()
+
+    val dialog = baseDialog(context, 390)
+    val card = dialogCard(context)
+    card.addView(dialogTitle(context, if (draft?.id == null) "记一笔" else "编辑这笔"))
+    card.addView(dialogMessage(
+        context,
+        if (draft?.id == null) "分类更细，记起来也更清楚。" else "金额、分类、日期和备注都可以改。",
+    ), LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+    ).apply { topMargin = context.dp(6) })
+
+    val typeRow = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        setPadding(0, context.dp(12), 0, 0)
+    }
+    lateinit var expensePill: TextView
+    lateinit var incomePill: TextView
+    fun stylePill(view: TextView, selected: Boolean) {
+        view.setTextColor(if (selected) AppColors.cinnabar else AppColors.muted)
+        view.typeface = if (selected) AppFont.sansMedium else AppFont.sans
+        view.background = rippleOn(
+            context,
+            roundedDrawable(
+                context,
+                if (selected) AppColors.cinnabarSoft else Color.TRANSPARENT,
+                16f,
+                if (selected) 0f else 0.8f,
+                if (selected) Color.TRANSPARENT else AppColors.line,
+            ),
+            0x1FB05238,
+        )
+    }
+    fun pill(label: String, selected: Boolean): TextView =
+        newText(context, label, 12f, AppColors.inkSoft, AppFont.sans).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            stylePill(this, selected)
+        }
+    expensePill = pill("支出", !income)
+    incomePill = pill("收入", income)
+    typeRow.addView(expensePill, LinearLayout.LayoutParams(0, context.dp(36), 1f).apply {
+        marginEnd = context.dp(6)
+    })
+    typeRow.addView(incomePill, LinearLayout.LayoutParams(0, context.dp(36), 1f))
+    card.addView(typeRow)
+
+    val amount = textInput(
+        context,
+        "金额（元）",
+        inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL,
+    ).apply {
+        setText(draft?.takeIf { it.amountCents > 0 }?.let { formatLedgerAmount(it.amountCents) } ?: "")
+        setSelection(text.length)
+        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20f)
+    }
+    card.addView(amount, LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        context.dp(52),
+    ).apply { topMargin = context.dp(10) })
+
+    val dateRow = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        isClickable = true
+        isFocusable = true
+        contentDescription = "选择日期"
+        background = rippleOn(
+            context,
+            roundedDrawable(context, AppColors.cream, 14f, 0.8f, AppColors.line),
+            0x1427231E,
+        )
+        setPadding(context.dp(13), 0, context.dp(10), 0)
+    }
+    val dateText = newText(context, "", 12.5f, AppColors.inkSoft, AppFont.sansMedium)
+    dateRow.addView(ImageView(context).apply {
+        setImageResource(R.drawable.ic_calendar)
+        setColorFilter(AppColors.cinnabar)
+    }, LinearLayout.LayoutParams(context.dp(17), context.dp(17)))
+    dateRow.addView(dateText, LinearLayout.LayoutParams(
+        0,
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+        1f,
+    ).apply { marginStart = context.dp(9) })
+    dateRow.addView(ImageView(context).apply {
+        setImageResource(R.drawable.ic_chevron_right)
+        setColorFilter(AppColors.faint)
+    }, LinearLayout.LayoutParams(context.dp(16), context.dp(16)))
+    fun refreshDate() {
+        dateText.text = epochDate(epochDay, "yyyy年M月d日 · EEEE")
+    }
+    dateRow.setOnClickListener {
+        showDateStepperDialog(context, LocalDate.ofEpochDay(epochDay)) { date ->
+            epochDay = date.toEpochDay()
+            refreshDate()
+        }
+    }
+    card.addView(dateRow, LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        context.dp(46),
+    ).apply { topMargin = context.dp(9) })
+
+    card.addView(newText(context, "分类", 10f, AppColors.muted, AppFont.sansMedium, 0.1f).apply {
+        setPadding(context.dp(2), context.dp(12), 0, context.dp(5))
+    })
+    val categoryGrid = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+    }
+    fun rebuildCategories() {
+        categoryGrid.removeAllViews()
+        val options = LedgerCategories.categories(income)
+        options.chunked(4).forEachIndexed { rowIndex, rowItems ->
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, if (rowIndex == 0) 0 else context.dp(4), 0, 0)
+            }
+            rowItems.forEachIndexed { index, option ->
+                val chip = categoryChip(context, option.label, option.label == category) {
+                    category = option.label
+                    rebuildCategories()
+                }
+                row.addView(chip, LinearLayout.LayoutParams(0, context.dp(34), 1f).apply {
+                    if (index < 3) marginEnd = context.dp(4)
+                })
+            }
+            repeat(4 - rowItems.size) {
+                row.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
+            }
+            categoryGrid.addView(row)
+        }
+    }
+    rebuildCategories()
+    card.addView(categoryGrid)
+
+    val note = textInput(context, "备注（可选）").apply {
+        setText(draft?.note.orEmpty())
+        setSelection(text.length)
+    }
+    card.addView(note, LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        context.dp(46),
+    ).apply { topMargin = context.dp(9) })
+
+    fun refreshType() {
+        stylePill(expensePill, !income)
+        stylePill(incomePill, income)
+        category = LedgerCategories.categories(income).first().label
+        rebuildCategories()
+    }
+    expensePill.setOnClickListener {
+        if (income) {
+            income = false
+            refreshType()
+        }
+    }
+    incomePill.setOnClickListener {
+        if (!income) {
+            income = true
+            refreshType()
+        }
+    }
+
+    val cancel = dialogButton(context, "取消", false)
+    cancel.setOnClickListener { dialog.dismiss() }
+    val save = dialogButton(context, "保存", true)
+    save.setOnClickListener {
+        val cents = centsFromInput(amount.text.toString())
+        if (cents == null) {
+            context.showNotice("填一个 0 到 1000 万之间的金额")
+            return@setOnClickListener
+        }
+        val finalCategory = LedgerCategories.normalize(category, income)
+        onSave(
+            LedgerDraft(
+                id = draft?.id,
+                income = income,
+                amountCents = cents,
+                category = finalCategory,
+                epochDay = epochDay,
+                note = note.text.toString().trim(),
+            ),
+        )
+        dialog.dismiss()
+    }
+    card.addView(buttonRow(context, cancel, save))
+
+    refreshDate()
     dialog.setContentView(card)
     dialog.show()
 }

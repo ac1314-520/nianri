@@ -96,14 +96,7 @@ object ReminderScheduler {
         val minutes = event.reminderMinuteOfDay ?: defaultMinutes
         val time = LocalTime.of((minutes / 60).coerceIn(0, 23), (minutes % 60).coerceIn(0, 59))
 
-        var occurrence: LocalDate = when {
-            event.recurring -> if (event.date.isAfter(today)) {
-                event.date
-            } else {
-                nextAnnualDate(event.date, today)
-            }
-            else -> event.date
-        }
+        var occurrence: LocalDate = event.nextOccurrence(today)
         if (!event.recurring && occurrence.isBefore(today)) return null
 
         repeat(6) {
@@ -111,7 +104,7 @@ object ReminderScheduler {
             val dueAt = dueDate.atTime(time).atZone(zone)
             if (dueAt.isAfter(now)) return dueAt
             if (!event.recurring) return null
-            occurrence = event.date.safeDateForYear(occurrence.year + 1)
+            occurrence = event.occurrenceAfter(occurrence) ?: return null
         }
         return null
     }

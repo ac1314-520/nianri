@@ -20,7 +20,10 @@ import com.nianri.app.data.CheckInCategory
 import com.nianri.app.data.CheckInPlan
 import com.nianri.app.data.DiaryEntry
 import com.nianri.app.data.LedgerEntry
+import com.nianri.app.data.MusicPlayer
+import com.nianri.app.data.MusicStore
 import com.nianri.app.data.PeriodRecord
+import com.nianri.app.data.PhotoStore
 import com.nianri.app.data.WishItem
 import com.nianri.app.data.WorkbenchSnapshot
 import com.nianri.app.data.WorkbenchStore
@@ -72,6 +75,18 @@ class RecordsView(
     private var diaryEditingId: String? = null
     private var diaryEditingDay: Long = LocalDate.now().toEpochDay()
     private var diaryMood: String? = null
+    private var diaryLoadedId: String? = null
+    private var diaryPhotoPath: String? = null
+    private var diaryMusicPath: String? = null
+    private var diaryMusicTitle: String? = null
+    private var diaryOriginalPhotoPath: String? = null
+    private var diaryOriginalMusicPath: String? = null
+    private var diaryPhotoArt: PhotoArtView? = null
+    private var diaryPhotoAction: TextView? = null
+    private var diaryPhotoRemove: View? = null
+    private var diaryMusicView: MusicAttachmentView? = null
+    private var diaryImportingPhoto = false
+    private var diaryImportingMusic = false
     private var diaryFilterMonth: YearMonth? = null
     private var diaryFilterMood: String? = null
     private val diaryMoodViews = mutableListOf<Pair<TextView, MoodOption>>()
@@ -213,6 +228,18 @@ class RecordsView(
         }
         val day = editing?.epochDay ?: diaryEditingDay
         diaryEditingDay = day
+        if (editing?.id != diaryLoadedId) {
+            diaryLoadedId = editing?.id
+            diaryPhotoPath = editing?.photoPath?.takeIf { PhotoStore.exists(host, it) }
+            diaryMusicPath = editing?.musicPath?.takeIf { MusicStore.exists(host, it) }
+            diaryMusicTitle = editing?.musicTitle
+            diaryOriginalPhotoPath = diaryPhotoPath
+            diaryOriginalMusicPath = diaryMusicPath
+            diaryPhotoArt = null
+            diaryPhotoAction = null
+            diaryPhotoRemove = null
+            diaryMusicView = null
+        }
 
         val composer = contentCard(host)
         val head = LinearLayout(host).apply {
@@ -290,6 +317,12 @@ class RecordsView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = host.dp(10) })
+
+        composer.addView(buildDiaryAttachments(), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(12) })
+
         val save = primaryAction(host, if (editing == null) "收下这一页" else "保存修改") {
             val text = input.text.toString().trim()
             if (text.isEmpty()) {
@@ -300,7 +333,15 @@ class RecordsView(
             val finalMood = diaryMood
             WorkbenchStore.update(host) { data ->
                 val notes = data.diary.filterNot { it.id == id } +
-                    DiaryEntry(id, day, text, finalMood)
+                    DiaryEntry(
+                        id = id,
+                        epochDay = day,
+                        text = text,
+                        moodKey = finalMood,
+                        photoPath = diaryPhotoPath,
+                        musicPath = diaryMusicPath,
+                        musicTitle = diaryMusicTitle,
+                    )
                 val moods = data.moods.toMutableMap()
                 finalMood?.let { moods[day] = it } ?: moods.remove(day)
                 data.copy(
@@ -308,6 +349,16 @@ class RecordsView(
                     moods = moods,
                 )
             }
+            val oldPhoto = diaryOriginalPhotoPath
+            if (oldPhoto != null && oldPhoto != diaryPhotoPath) {
+                PhotoStore.delete(host, oldPhoto)
+            }
+            val oldMusic = diaryOriginalMusicPath
+            if (oldMusic != null && oldMusic != diaryMusicPath) {
+                MusicStore.delete(host, oldMusic)
+            }
+            diaryOriginalPhotoPath = diaryPhotoPath
+            diaryOriginalMusicPath = diaryMusicPath
             diaryEditingId = id
             diaryEditingDay = day
             diaryInitialized = true
@@ -382,6 +433,164 @@ class RecordsView(
                 setPadding(0, host.dp(7), 0, 0)
             })
         }
+    }
+
+    private fun buildDiaryAttachments(): View {
+        val box = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val photoRow = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = roundedDrawable(host, AppColors.cream, 20f, 0.8f, AppColors.line)
+            setPadding(host.dp(10), host.dp(10), host.dp(12), host.dp(10))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { openDiaryPhotoPicker() }
+        }
+        diaryPhotoArt = PhotoArtView(host).apply {
+            setCornerRadiusDp(14f)
+            setScrimEnabled(false)
+            setFitWideImages(false)
+            setImageName(diaryPhotoPath)
+        }
+        photoRow.addView(diaryPhotoArt, LinearLayout.LayoutParams(host.dp(54), host.dp(54)))
+
+        val labels = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(host.dp(11), 0, host.dp(8), 0)
+        }
+        labels.addView(newText(host, "照片", 12.5f, AppColors.ink, AppFont.sansMedium))
+        labels.addView(newText(host, "给这一页一张画面", 9.5f, AppColors.muted, AppFont.sans).apply {
+            setPadding(0, host.dp(3), 0, 0)
+        })
+        photoRow.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        diaryPhotoAction = newText(host, "", 10.5f, AppColors.cinnabar, AppFont.sansMedium).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setPadding(host.dp(6), host.dp(4), host.dp(6), host.dp(4))
+            setOnClickListener { openDiaryPhotoPicker() }
+        }
+        photoRow.addView(diaryPhotoAction)
+        diaryPhotoRemove = FrameLayout(host).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = "移除照片"
+            background = rippleOn(host, roundedDrawable(host, AppColors.paper, 15f), 0x14141413)
+            setOnClickListener { removeDiaryPhoto() }
+            addView(ImageView(host).apply {
+                setImageResource(R.drawable.ic_close)
+                setColorFilter(AppColors.muted)
+            }, FrameLayout.LayoutParams(host.dp(14), host.dp(14), Gravity.CENTER))
+        }
+        photoRow.addView(diaryPhotoRemove, LinearLayout.LayoutParams(host.dp(30), host.dp(30)).apply {
+            marginStart = host.dp(4)
+        })
+        box.addView(photoRow)
+        updateDiaryPhotoUi()
+
+        diaryMusicView = MusicAttachmentView(
+            host = host,
+            editable = true,
+            onPick = { openDiaryMusicPicker() },
+            onRemove = { removeDiaryMusic() },
+        ).apply {
+            bind(diaryMusicPath, diaryMusicTitle)
+        }
+        box.addView(diaryMusicView, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(8) })
+        return box
+    }
+
+    private fun updateDiaryPhotoUi() {
+        diaryPhotoArt?.setImageName(diaryPhotoPath)
+        diaryPhotoAction?.text = if (diaryPhotoPath == null) "添加" else "更换"
+        diaryPhotoRemove?.visibility = if (diaryPhotoPath == null) View.GONE else View.VISIBLE
+    }
+
+    private fun openDiaryPhotoPicker() {
+        if (diaryImportingPhoto) {
+            host.showNotice("照片正在处理中，请稍候")
+            return
+        }
+        host.launchPhotoPicker { uri ->
+            if (uri != null) importDiaryPhoto(uri)
+        }
+    }
+
+    private fun importDiaryPhoto(uri: android.net.Uri) {
+        diaryImportingPhoto = true
+        host.showNotice("正在把照片收进这一页…")
+        PhotoStore.importImage(host, uri) { name, error ->
+            diaryImportingPhoto = false
+            if (name == null) {
+                host.showNotice(error ?: "照片处理失败")
+                return@importImage
+            }
+            val previous = diaryPhotoPath
+            if (previous != null && previous != diaryOriginalPhotoPath) {
+                PhotoStore.delete(host, previous)
+            }
+            diaryPhotoPath = name
+            updateDiaryPhotoUi()
+            host.showNotice("照片已放进这一页")
+        }
+    }
+
+    private fun removeDiaryPhoto() {
+        val current = diaryPhotoPath
+        diaryPhotoPath = null
+        if (current != null && current != diaryOriginalPhotoPath) {
+            PhotoStore.delete(host, current)
+        }
+        updateDiaryPhotoUi()
+    }
+
+    private fun openDiaryMusicPicker() {
+        if (diaryImportingMusic) {
+            host.showNotice("音乐正在导入，请稍候")
+            return
+        }
+        host.launchAudioPicker { uri ->
+            if (uri != null) importDiaryMusic(uri)
+        }
+    }
+
+    private fun importDiaryMusic(uri: android.net.Uri) {
+        diaryImportingMusic = true
+        host.showNotice("正在把这段声音收进这一页…")
+        MusicStore.importAudio(host, uri) { name, title, error ->
+            diaryImportingMusic = false
+            if (name == null) {
+                host.showNotice(error ?: "音乐导入失败")
+                return@importAudio
+            }
+            MusicPlayer.stop()
+            val previous = diaryMusicPath
+            if (previous != null && previous != diaryOriginalMusicPath) {
+                MusicStore.delete(host, previous)
+            }
+            diaryMusicPath = name
+            diaryMusicTitle = title
+            diaryMusicView?.bind(name, title)
+            host.showNotice("这段声音，已经留在这一页了")
+        }
+    }
+
+    private fun removeDiaryMusic() {
+        MusicPlayer.stop()
+        val current = diaryMusicPath
+        diaryMusicPath = null
+        diaryMusicTitle = null
+        if (current != null && current != diaryOriginalMusicPath) {
+            MusicStore.delete(host, current)
+        }
+        diaryMusicView?.bind(null, null)
     }
 
     private fun addDiaryFilterBar() {
@@ -546,6 +755,17 @@ class RecordsView(
                 render(preserveScroll = false)
             }
         }
+        val photoPath = entry.photoPath?.takeIf { PhotoStore.exists(host, it) }
+        if (photoPath != null) {
+            row.addView(PhotoArtView(host).apply {
+                setCornerRadiusDp(12f)
+                setScrimEnabled(false)
+                setFitWideImages(false)
+                setImageName(photoPath)
+            }, LinearLayout.LayoutParams(host.dp(46), host.dp(46)).apply {
+                marginEnd = host.dp(11)
+            })
+        }
         val labels = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -568,6 +788,29 @@ class RecordsView(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                 ).apply { marginStart = host.dp(7) })
         }
+        val musicPath = entry.musicPath?.takeIf { MusicStore.exists(host, it) }
+        if (musicPath != null) {
+            val musicIcon = ImageView(host).apply {
+                setImageResource(
+                    if (MusicPlayer.isPlaying(MusicPlayer.filePath(host, musicPath))) {
+                        R.drawable.ic_pause
+                    } else {
+                        R.drawable.ic_play
+                    }
+                )
+                setColorFilter(AppColors.cinnabar)
+                contentDescription = "播放日记音乐"
+                setPadding(host.dp(4), host.dp(4), host.dp(4), host.dp(4))
+                setOnClickListener {
+                    MusicPlayer.toggle(MusicPlayer.filePath(host, musicPath)) { playing ->
+                        setImageResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
+                    }
+                }
+            }
+            titleRow.addView(musicIcon, LinearLayout.LayoutParams(host.dp(22), host.dp(22)).apply {
+                marginStart = host.dp(6)
+            })
+        }
         labels.addView(titleRow)
         labels.addView(newText(host, entry.text, 12.5f, AppColors.inkSoft, AppFont.serif).apply {
             setPadding(0, host.dp(6), 0, 0)
@@ -575,6 +818,15 @@ class RecordsView(
             ellipsize = TextUtils.TruncateAt.END
             setLineSpacing(host.dpf(3f), 1f)
         })
+        if (musicPath != null) {
+            labels.addView(newText(
+                host,
+                "♪ ${entry.musicTitle?.takeIf { it.isNotBlank() } ?: "这一页的声音"}",
+                9f,
+                AppColors.cinnabar,
+                AppFont.sansMedium,
+            ).apply { setPadding(0, host.dp(5), 0, 0) })
+        }
         row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(ImageView(host).apply {
             setImageResource(R.drawable.ic_trash)
@@ -591,6 +843,8 @@ class RecordsView(
                     WorkbenchStore.update(host) { data ->
                         data.copy(diary = data.diary.filterNot { it.id == entry.id })
                     }
+                    PhotoStore.delete(host, entry.photoPath)
+                    MusicStore.delete(host, entry.musicPath)
                     if (diaryEditingId == entry.id) {
                         diaryEditingId = null
                         diaryMood = null

@@ -18,6 +18,7 @@ import com.nianri.app.model.dateLine
 import com.nianri.app.model.display
 import com.nianri.app.model.sortedForHome
 import java.time.LocalDate
+import java.util.concurrent.Executors
 
 abstract class BaseAnniversaryWidgetProvider : AppWidgetProvider() {
     abstract val layoutRes: Int
@@ -60,8 +61,20 @@ object WidgetUpdater {
     )
 
     private const val PREFS = "anniversary_widget_prefs"
+    private val widgetExecutor = Executors.newSingleThreadExecutor()
 
+    /**
+     * Widget 更新会读本地照片并解码。不能放在 Activity.onResume 的主线程里，
+     * 否则列表一多、封面一大，点按和返回就会明显卡顿。
+     */
     fun updateAll(context: Context) {
+        val appContext = context.applicationContext
+        widgetExecutor.execute {
+            runCatching { updateAllNow(appContext) }
+        }
+    }
+
+    private fun updateAllNow(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
         specs.forEach { spec ->
             val ids = manager.getAppWidgetIds(ComponentName(context, spec.provider))

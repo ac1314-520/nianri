@@ -61,20 +61,26 @@ class HomeView(
 
         column.addView(buildHeader())
         column.addView(buildDateLine())
+        column.addView(View(host).apply {
+            setBackgroundColor(AppColors.line)
+        }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(0.7f).coerceAtLeast(1),
+        ).apply { topMargin = host.dp(18) })
 
         if (hero == null) {
             column.addView(buildEmptyState())
         } else {
             val heroCard = buildHero(hero)
             val heroSwipe = SwipeToDeleteLayout(host).apply {
-                setCornerRadiusDp(30f)
+                setCornerRadiusDp(28f)
                 setContent(heroCard, fillHeight = true)
                 onDelete = { host.deleteEventBySwipe(hero) }
             }
             column.addView(heroSwipe, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                host.dp(372),
-            ).apply { topMargin = host.dp(20) })
+                host.dp(356),
+            ).apply { topMargin = host.dp(18) })
 
             if (rest.isNotEmpty()) {
                 column.addView(buildSectionLabel(sorted.size), LinearLayout.LayoutParams(
@@ -127,13 +133,13 @@ class HomeView(
             addView(TextView(host).apply {
                 text = "念"
                 gravity = Gravity.CENTER
-                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 17f)
                 setTextColor(AppColors.cream)
                 typeface = AppFont.serif
                 includeFontPadding = false
                 background = roundedDrawable(host, AppColors.cinnabar, 9f)
-            }, LinearLayout.LayoutParams(host.dp(34), host.dp(34)))
-            addView(newText(host, "念日", 21f, AppColors.ink, AppFont.serif, 0.08f), LinearLayout.LayoutParams(
+            }, LinearLayout.LayoutParams(host.dp(36), host.dp(36)))
+            addView(newText(host, "念日", 23f, AppColors.ink, AppFont.serif, 0.06f), LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f,
@@ -200,9 +206,9 @@ class HomeView(
         val display = event.display(today)
         val accent = AccentPalette.of(event.accentIndex)
         val card = FrameLayout(host).apply {
-            background = roundedDrawable(host, accent.deep, 30f)
+            background = roundedDrawable(host, accent.deep, 28f)
             clipToOutline = true
-            elevation = host.dpf(7f)
+            elevation = host.dpf(0f)
             isClickable = true
             isFocusable = true
             contentDescription = "查看${event.title}，${display.kicker}${display.big}${display.unit}"
@@ -210,7 +216,7 @@ class HomeView(
         }
 
         val art = PhotoArtView(host).apply {
-            setCornerRadiusDp(30f)
+            setCornerRadiusDp(28f)
             setAccentColors(accent.color, accent.deep)
             setTopScrimEnabled(true)
             setFitWideImages(true)
@@ -258,7 +264,7 @@ class HomeView(
         val title = newText(
             host,
             event.title,
-            if (event.title.length > 17) 22f else 26f,
+            if (event.title.length > 17) 24f else 28f,
             AppColors.cream,
             AppFont.serif,
         ).apply {
@@ -267,9 +273,14 @@ class HomeView(
             setLineSpacing(host.dpf(1f), 1f)
         }
         overlay.addView(title)
+        val lunarLine = if (event.lunar && event.lunarValue != null) {
+            "   ·   农历 ${event.lunarValue!!.shortLabel}"
+        } else {
+            ""
+        }
         overlay.addView(newText(
             host,
-            "${event.date.dotDate()}   ·   ${if (event.recurring) "每年今日" else "仅此一次"}",
+            "${event.date.dotDate()}$lunarLine   ·   ${if (event.recurring) "每年今日" else "仅此一次"}",
             10f,
             Color.argb(190, 255, 249, 239),
             AppFont.sans,
@@ -295,9 +306,9 @@ class HomeView(
             setPadding(0, host.dp(1), 0, 0)
         }
         val numberSize = when {
-            display.big == "今天" -> 54f
-            display.big.length >= 5 -> 58f
-            else -> 72f
+            display.big == "今天" -> 56f
+            display.big.length >= 5 -> 62f
+            else -> 76f
         }
         val number = newText(
             host,
@@ -483,7 +494,7 @@ class HomeView(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(host.dp(2), 0, host.dp(2), 0)
-            addView(newText(host, "所有日子", 18f, AppColors.ink, AppFont.serif), LinearLayout.LayoutParams(
+            addView(newText(host, "所有日子", 19f, AppColors.ink, AppFont.serif), LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f,
@@ -518,7 +529,7 @@ class HomeView(
             }
             val content = buildRowContent(event)
             val swipe = SwipeToDeleteLayout(host).apply {
-                setCornerRadiusDp(22f)
+                setCornerRadiusDp(20f)
                 setContent(content, fillHeight = false)
                 onDelete = { host.deleteEventBySwipe(event) }
             }
@@ -545,7 +556,7 @@ class HomeView(
                 0.12f,
             ))
             addView(View(host).apply {
-                setBackgroundColor(Color.argb(90, 183, 171, 153))
+                setBackgroundColor(AppColors.line)
             }, LinearLayout.LayoutParams(0, 1, 1f).apply {
                 marginStart = host.dp(12)
             })
@@ -561,12 +572,12 @@ class HomeView(
             setPadding(host.dp(14), host.dp(13), host.dp(14), host.dp(13))
             isClickable = true
             isFocusable = true
-            elevation = host.dpf(1f)
+            elevation = host.dpf(0f)
             contentDescription = "${event.title}，${display.kicker}${display.big}${display.unit}。左滑可以删除。"
             background = rippleOn(
                 host,
-                roundedDrawable(host, AppColors.cream, 22f, 0.8f, Color.argb(150, 228, 217, 202)),
-                0x1427231E,
+                roundedDrawable(host, AppColors.cream, 20f, 0.8f, AppColors.line),
+                0x0D141413,
             )
         }
 
@@ -687,7 +698,7 @@ class HomeView(
             setPadding(host.dp(14), host.dp(30), host.dp(14), 0)
         }
         box.addView(View(host).apply {
-            setBackgroundColor(Color.argb(110, 176, 82, 56))
+            setBackgroundColor(Color.argb(110, 204, 120, 92))
         }, LinearLayout.LayoutParams(host.dp(22), 1))
         box.addView(newText(
             host,

@@ -27,9 +27,12 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import com.nianri.app.data.AnniversaryStore
 import com.nianri.app.data.AppPreferences
+import com.nianri.app.data.MusicPlayer
+import com.nianri.app.data.MusicStore
 import com.nianri.app.data.PhotoStore
 import com.nianri.app.data.WeatherManager
 import com.nianri.app.data.WeatherStore
+import com.nianri.app.data.WorkbenchStore
 import com.nianri.app.model.Anniversary
 import com.nianri.app.model.sortedForHome
 import com.nianri.app.reminder.ReminderEngine
@@ -80,6 +83,7 @@ class MainActivity : Activity() {
     private var detailEventId: String? = null
     private var editorOriginalId: String? = null
     private var photoPickerCallback: ((Uri?) -> Unit)? = null
+    private var audioPickerCallback: ((Uri?) -> Unit)? = null
     private var refreshOnResume = false
     private var checkingUpdates = false
     private var downloadingUpdate = false
@@ -114,8 +118,17 @@ class MainActivity : Activity() {
 
         showHome(false)
         handleNotificationIntent(intent)
-        val referencedPhotos = AnniversaryStore.all(this).mapNotNull { it.imagePath }.toSet()
+        val diaryEntries = WorkbenchStore.get(this).diary
+        val referencedPhotos = (
+            AnniversaryStore.all(this).mapNotNull { it.imagePath } +
+                diaryEntries.mapNotNull { it.photoPath }
+            ).toSet()
         PhotoStore.cleanupOrphans(this, referencedPhotos)
+        val referencedMusic = (
+            AnniversaryStore.all(this).mapNotNull { it.musicPath } +
+                diaryEntries.mapNotNull { it.musicPath }
+            ).toSet()
+        MusicStore.cleanupOrphans(this, referencedMusic)
         root.postDelayed({ maybeAutoCheckUpdates() }, 2_200L)
     }
 
@@ -381,6 +394,7 @@ class MainActivity : Activity() {
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.cancel(ReminderEngine.notificationId(event.id))
         PhotoStore.delete(this, event.imagePath)
+        MusicStore.delete(this, event.musicPath)
         AnniversaryStore.delete(this, event.id)
         AppPreferences.get(this).clearNotificationMark(event.id)
         ReminderScheduler.ensureScheduled(this)
@@ -410,6 +424,7 @@ class MainActivity : Activity() {
                 if (!event.imagePath.isNullOrBlank()) {
                     PhotoStore.delete(this, event.imagePath)
                 }
+                MusicStore.delete(this, event.musicPath)
             }
         }
         pendingSwipeCleanup = cleanup
@@ -609,12 +624,45 @@ class MainActivity : Activity() {
         showNotice("这台设备没有可用的相册或照片选择器")
     }
 
+    fun launchAudioPicker(onResult: (Uri?) -> Unit) {
+        audioPickerCallback = onResult
+        val candidates = listOf(
+            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "audio/*"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            },
+            Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "audio/*"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            },
+        )
+        for (intent in candidates) {
+            try {
+                startActivityForResult(intent, REQUEST_AUDIO)
+                return
+            } catch (_: ActivityNotFoundException) {
+                // Try the next document picker source.
+            } catch (_: Exception) {
+                // Fall through to the next candidate.
+            }
+        }
+        audioPickerCallback = null
+        showNotice("这台设备没有可用的文件选择器")
+    }
+
     @Deprecated("Activity result API is used to stay dependency-free")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_PHOTO) {
             val callback = photoPickerCallback
             photoPickerCallback = null
+            callback?.invoke(if (resultCode == RESULT_OK) data?.data else null)
+        }
+        if (requestCode == REQUEST_AUDIO) {
+            val callback = audioPickerCallback
+            audioPickerCallback = null
             callback?.invoke(if (resultCode == RESULT_OK) data?.data else null)
         }
     }
@@ -1039,6 +1087,8 @@ class MainActivity : Activity() {
         clearNotice()
         finalizePendingSwipeDelete()
         photoPickerCallback = null
+        audioPickerCallback = null
+        MusicPlayer.release()
         super.onDestroy()
     }
 
@@ -1046,5 +1096,6 @@ class MainActivity : Activity() {
         const val EXTRA_EVENT_ID = "com.nianri.app.extra.EVENT_ID"
         private const val REQUEST_PHOTO = 4201
         private const val REQUEST_NOTIFICATION_PERMISSION = 4202
+        private const val REQUEST_AUDIO = 4203
     }
 }

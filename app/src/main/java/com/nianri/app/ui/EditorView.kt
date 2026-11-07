@@ -26,9 +26,13 @@ import com.nianri.app.MainActivity
 import com.nianri.app.R
 import com.nianri.app.data.AnniversaryStore
 import com.nianri.app.data.AppPreferences
+import com.nianri.app.data.MusicPlayer
+import com.nianri.app.data.MusicStore
 import com.nianri.app.data.PhotoStore
 import com.nianri.app.model.AccentPalette
 import com.nianri.app.model.Anniversary
+import com.nianri.app.model.LunarDate
+import com.nianri.app.model.LunarDateValue
 import com.nianri.app.model.ReminderAdvance
 import com.nianri.app.reminder.ReminderEngine
 import com.nianri.app.reminder.ReminderScheduler
@@ -44,6 +48,17 @@ class EditorView(
 
     private val isEditing = original != null
     private var selectedDate: LocalDate = original?.date ?: LocalDate.now()
+    private var lunarMode: Boolean = original?.lunar ?: false
+    private var lunarYear: Int = original?.lunarYear
+        ?: LunarDate.fromSolar(selectedDate)?.year
+        ?: selectedDate.year
+    private var lunarMonth: Int = original?.lunarMonth
+        ?: LunarDate.fromSolar(selectedDate)?.month
+        ?: selectedDate.monthValue
+    private var lunarDay: Int = original?.lunarDay
+        ?: LunarDate.fromSolar(selectedDate)?.day
+        ?: selectedDate.dayOfMonth
+    private var lunarLeap: Boolean = original?.lunarLeap ?: false
     private var recurring: Boolean = original?.recurring ?: true
     private var accentIndex: Int = original?.accentIndex ?: 0
     private var reminderEnabled: Boolean = original?.reminderEnabled ?: true
@@ -54,13 +69,22 @@ class EditorView(
         PhotoStore.exists(host, it)
     }
     private val originalPhotoName: String? = selectedPhotoName
+    private var selectedMusicName: String? = original?.musicPath?.takeIf {
+        MusicStore.exists(host, it)
+    }
+    private var selectedMusicTitle: String? = original?.musicTitle
+    private val originalMusicName: String? = selectedMusicName
+    private lateinit var musicAttachment: MusicAttachmentView
     private var importingPhoto = false
+    private var importingMusic = false
     private var cancelled = false
     private var saved = false
 
     private lateinit var titleInput: EditText
     private lateinit var noteInput: EditText
     private lateinit var dateValue: TextView
+    private lateinit var calendarModeSolar: TextView
+    private lateinit var calendarModeLunar: TextView
     private lateinit var typeHelper: TextView
     private lateinit var yearlySegment: TextView
     private lateinit var onceSegment: TextView
@@ -109,7 +133,6 @@ class EditorView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             host.dp(220),
         ).apply { topMargin = host.dp(8) })
-
         column.addView(sectionTitle("名字", "只属于这一天的名字"), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -123,8 +146,12 @@ class EditorView(
         ).apply { topMargin = host.dp(22) })
         column.addView(buildDateRow(), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            host.dp(54),
+            host.dp(66),
         ))
+        column.addView(buildCalendarModeSwitch(), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            host.dp(38),
+        ).apply { topMargin = host.dp(8) })
         column.addView(buildTypeSwitch(), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             host.dp(50),
@@ -152,6 +179,22 @@ class EditorView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
+
+        column.addView(sectionTitle("声音", "给这一天留一段可以重听的音乐"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(24) })
+        musicAttachment = MusicAttachmentView(
+            host = host,
+            editable = true,
+            onPick = { openMusicPicker() },
+            onRemove = { removeMusic() },
+        )
+        musicAttachment.bind(selectedMusicName, selectedMusicTitle)
+        column.addView(musicAttachment, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
 
         column.addView(sectionTitle("提醒", "在重要的日子到来前提醒你"), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -255,7 +298,8 @@ class EditorView(
             setColorFilter(AppColors.cinnabar)
         }
         row.addView(icon, LinearLayout.LayoutParams(host.dp(19), host.dp(19)))
-        dateValue = newText(host, "", 14f, AppColors.ink, AppFont.sansMedium)
+        dateValue = newText(host, "", 13.5f, AppColors.ink, AppFont.sansMedium)
+        dateValue.maxLines = 2
         row.addView(dateValue, LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -268,6 +312,75 @@ class EditorView(
         row.addView(chevron, LinearLayout.LayoutParams(host.dp(18), host.dp(18)))
         row.setOnClickListener { openDatePicker() }
         return row
+    }
+
+    private fun buildCalendarModeSwitch(): View {
+        val container = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(host.dp(4), host.dp(4), host.dp(4), host.dp(4))
+            background = roundedDrawable(host, AppColors.paperDeep, 16f)
+        }
+        val solar = newText(host, "公历", 11.5f, AppColors.muted, AppFont.sansMedium).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                if (lunarMode) {
+                    val value = lunarValue()
+                    if (value != null) {
+                        selectedDate = LunarDate.toSolar(value) ?: selectedDate
+                    }
+                    lunarMode = false
+                    updateCalendarModeUi()
+                    updateDateUi()
+                }
+            }
+        }
+        val lunar = newText(host, "农历", 11.5f, AppColors.muted, AppFont.sansMedium).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                if (!lunarMode) {
+                    val value = LunarDate.fromSolar(selectedDate)
+                    if (value != null) {
+                        lunarYear = value.year
+                        lunarMonth = value.month
+                        lunarDay = value.day
+                        lunarLeap = value.leap
+                    }
+                    lunarMode = true
+                    updateCalendarModeUi()
+                    updateDateUi()
+                }
+            }
+        }
+        calendarModeSolar = solar
+        calendarModeLunar = lunar
+        container.addView(solar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        container.addView(lunar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        updateCalendarModeUi()
+        return container
+    }
+
+    private fun lunarValue(): LunarDateValue? {
+        return LunarDateValue(lunarYear, lunarMonth, lunarDay, lunarLeap)
+    }
+
+    private fun updateCalendarModeUi() {
+        if (!::calendarModeSolar.isInitialized) return
+        styleCalendarMode(calendarModeSolar, !lunarMode)
+        styleCalendarMode(calendarModeLunar, lunarMode)
+        if (::typeHelper.isInitialized) updateTypeUi()
+    }
+
+    private fun styleCalendarMode(view: TextView, selected: Boolean) {
+        view.setTextColor(if (selected) AppColors.cream else AppColors.muted)
+        view.background = if (selected) {
+            rippleOn(host, roundedDrawable(host, AppColors.ink, 13f), 0x33FFFFFF)
+        } else {
+            roundedDrawable(host, Color.TRANSPARENT, 13f)
+        }
     }
 
     private fun buildTypeSwitch(): View {
@@ -306,7 +419,7 @@ class EditorView(
         styleSegment(yearlySegment, recurring)
         styleSegment(onceSegment, !recurring)
         typeHelper.text = if (recurring) {
-            "每年同一天都会再次被点亮，主页面会显示相伴天数。"
+            if (lunarMode) "每年农历同一天都会再次被点亮，主页面会显示相伴天数。" else "每年同一天都会再次被点亮，主页面会显示相伴天数。"
         } else {
             "只倒数这一次，适合旅行、考试、约定和重要计划。"
         }
@@ -615,6 +728,60 @@ class EditorView(
         }
     }
 
+    private fun openMusicPicker() {
+        if (importingMusic) {
+            host.showNotice("音乐正在导入，请稍候")
+            return
+        }
+        host.launchAudioPicker { uri ->
+            if (uri != null) importMusic(uri)
+        }
+    }
+
+    private fun importMusic(uri: Uri) {
+        importingMusic = true
+        host.showNotice("正在把这段声音收进来…")
+        MusicStore.importAudio(host, uri) { name, title, error ->
+            importingMusic = false
+            if (saved) {
+                if (name != null) MusicStore.delete(host, name)
+                return@importAudio
+            }
+            if (name == null) {
+                host.showNotice(error ?: "音乐导入失败")
+                return@importAudio
+            }
+            if (cancelled) {
+                MusicStore.delete(host, name)
+                return@importAudio
+            }
+            if (selectedMusicName != null) MusicPlayer.stop()
+            val previous = selectedMusicName
+            if (previous != null && previous != originalMusicName) {
+                MusicStore.delete(host, previous)
+            }
+            selectedMusicName = name
+            selectedMusicTitle = title
+            musicAttachment.bind(name, title)
+            host.showNotice("这段声音，已经留在这一天了")
+        }
+    }
+
+    private fun removeMusic() {
+        if (importingMusic) {
+            host.showNotice("音乐正在导入，请稍候")
+            return
+        }
+        MusicPlayer.stop()
+        val current = selectedMusicName
+        selectedMusicName = null
+        selectedMusicTitle = null
+        if (current != null && current != originalMusicName) {
+            MusicStore.delete(host, current)
+        }
+        musicAttachment.bind(null, null)
+    }
+
     private fun buildReminderCard(): View {
         val card = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
@@ -758,6 +925,21 @@ class EditorView(
     }
 
     private fun openDatePicker() {
+        if (lunarMode) {
+            val value = lunarValue() ?: run {
+                host.showNotice("农历日期还没有准备好")
+                return
+            }
+            showLunarDateStepperDialog(host, value) { lunar, solar ->
+                lunarYear = lunar.year
+                lunarMonth = lunar.month
+                lunarDay = lunar.day
+                lunarLeap = lunar.leap
+                selectedDate = solar
+                updateDateUi()
+            }
+            return
+        }
         showDateStepperDialog(host, selectedDate) { date ->
             selectedDate = date
             updateDateUi()
@@ -766,7 +948,18 @@ class EditorView(
 
     private fun updateDateUi() {
         if (!::dateValue.isInitialized) return
-        dateValue.text = "${selectedDate.year}年${selectedDate.monthValue}月${selectedDate.dayOfMonth}日  ${selectedDate.weekdayCn()}"
+        if (lunarMode) {
+            val value = lunarValue()
+            dateValue.text = if (value != null) {
+                "农历 ${value.fullLabel}\n公历 ${selectedDate.year}年${selectedDate.monthValue}月${selectedDate.dayOfMonth}日"
+            } else {
+                "农历日期不可用"
+            }
+            dateValue.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12.5f)
+        } else {
+            dateValue.text = "${selectedDate.year}年${selectedDate.monthValue}月${selectedDate.dayOfMonth}日  ${selectedDate.weekdayCn()}"
+            dateValue.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13.5f)
+        }
     }
 
     private fun buildBottomActions(): View {
@@ -804,7 +997,20 @@ class EditorView(
             host.showNotice("照片正在装裱，稍等一下")
             return
         }
+        if (importingMusic) {
+            host.showNotice("音乐正在导入，稍等一下")
+            return
+        }
         val title = titleInput.text.toString().trim()
+        if (lunarMode) {
+            val value = lunarValue()
+            val solar = value?.let { LunarDate.toSolar(it) }
+            if (value == null || solar == null) {
+                host.showNotice("这个农历日期不存在，请重新选择")
+                return
+            }
+            selectedDate = solar
+        }
         if (title.isEmpty()) {
             host.showNotice("先给这一天一个名字吧")
             titleInput.requestFocus()
@@ -818,6 +1024,13 @@ class EditorView(
             recurring = recurring,
             note = noteInput.text.toString().trim(),
             imagePath = selectedPhotoName,
+            musicPath = selectedMusicName,
+            musicTitle = selectedMusicTitle,
+            lunar = lunarMode,
+            lunarYear = if (lunarMode) lunarYear else null,
+            lunarMonth = if (lunarMode) lunarMonth else null,
+            lunarDay = if (lunarMode) lunarDay else null,
+            lunarLeap = if (lunarMode) lunarLeap else false,
             accentIndex = accentIndex,
             reminderEnabled = reminderEnabled,
             reminderAdvanceDays = advanceDays,
@@ -836,6 +1049,9 @@ class EditorView(
         if (originalPhotoName != null && originalPhotoName != selectedPhotoName) {
             PhotoStore.delete(host, originalPhotoName)
         }
+        if (originalMusicName != null && originalMusicName != selectedMusicName) {
+            MusicStore.delete(host, originalMusicName)
+        }
         if (original != null &&
             (original.reminderEnabled != event.reminderEnabled ||
                 original.reminderAdvanceDays != event.reminderAdvanceDays ||
@@ -853,7 +1069,9 @@ class EditorView(
             return titleInput.text.isNotBlank() ||
                 noteInput.text.isNotBlank() ||
                 selectedPhotoName != null ||
+                selectedMusicName != null ||
                 selectedDate != LocalDate.now() ||
+                lunarMode ||
                 !recurring ||
                 accentIndex != 0 ||
                 advanceDays != 0 ||
@@ -863,8 +1081,14 @@ class EditorView(
         return titleInput.text.toString().trim() != original.title ||
             noteInput.text.toString().trim() != original.note ||
             selectedDate != original.date ||
+            lunarMode != original.lunar ||
+            lunarYear != original.lunarYear ||
+            lunarMonth != original.lunarMonth ||
+            lunarDay != original.lunarDay ||
+            lunarLeap != original.lunarLeap ||
             recurring != original.recurring ||
             selectedPhotoName != originalPhotoName ||
+            selectedMusicName != originalMusicName ||
             accentIndex != original.accentIndex ||
             reminderEnabled != original.reminderEnabled ||
             advanceDays != original.reminderAdvanceDays ||
@@ -877,6 +1101,10 @@ class EditorView(
         val current = selectedPhotoName
         if (current != null && current != originalPhotoName) {
             PhotoStore.delete(host, current)
+        }
+        val currentMusic = selectedMusicName
+        if (currentMusic != null && currentMusic != originalMusicName) {
+            MusicStore.delete(host, currentMusic)
         }
     }
 

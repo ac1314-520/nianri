@@ -18,12 +18,15 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.NumberPicker
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import com.nianri.app.MainActivity
 import com.nianri.app.R
 import com.nianri.app.model.Anniversary
+import com.nianri.app.model.LunarDate
+import com.nianri.app.model.LunarDateValue
 import com.nianri.app.model.dateLine
 import com.nianri.app.update.UpdateInfo
 import java.time.LocalDate
@@ -264,6 +267,43 @@ fun showDateStepperDialog(
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT,
     ))
+    var solarYearPicker: NumberPicker? = null
+    val solarWheel = NumberPicker(context).apply {
+        minValue = minYear
+        maxValue = maxYear
+        value = year
+        wrapSelectorWheel = false
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        setFormatter { value -> "${value}年" }
+        setOnValueChangedListener { _, _, newValue ->
+            if (year != newValue) {
+                year = newValue
+                clampDay()
+                updateLabels()
+            }
+        }
+    }
+    solarYearPicker = solarWheel
+    card.addView(solarWheel, LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        context.dp(100),
+    ))
+    prevYear.setOnClickListener {
+        if (year > minYear) {
+            year--
+            clampDay()
+            updateLabels()
+            solarYearPicker?.value = year
+        }
+    }
+    nextYear.setOnClickListener {
+        if (year < maxYear) {
+            year++
+            clampDay()
+            updateLabels()
+            solarYearPicker?.value = year
+        }
+    }
 
     fun adjustRow(
         label: String,
@@ -337,6 +377,218 @@ fun showDateStepperDialog(
     dialog.show()
 }
 
+
+fun showLunarDateStepperDialog(
+    context: Context,
+    initial: LunarDateValue,
+    onSelected: (LunarDateValue, LocalDate) -> Unit,
+) {
+    val minYear = 1900
+    val maxYear = 2100
+    var year = initial.year.coerceIn(minYear, maxYear)
+    var month = initial.month.coerceIn(1, 12)
+    var leap = initial.leap && LunarDate.leapMonthOf(year) == month
+    var day = initial.day.coerceIn(1, LunarDate.daysInMonth(year, month, leap))
+
+    fun clampDay() {
+        val maxDay = LunarDate.daysInMonth(year, month, leap)
+        day = day.coerceIn(1, maxDay)
+    }
+
+    fun normalizeLeap() {
+        if (LunarDate.leapMonthOf(year) != month) leap = false
+        clampDay()
+    }
+
+    val dialog = baseDialog(context, 380)
+    val card = dialogCard(context)
+    card.addView(dialogTitle(context, "选择农历日期"))
+    card.addView(dialogMessage(context, "按农历年、月、日选择，支持闰月。"), LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+    ).apply { topMargin = context.dp(7) })
+
+    val yearLabel = newText(context, "农历年份", 10f, AppColors.muted, AppFont.sansMedium, 0.12f).apply {
+        setPadding(context.dp(4), context.dp(15), 0, context.dp(5))
+    }
+    card.addView(yearLabel)
+    val yearValue = newText(context, "", 28f, AppColors.ink, AppFont.serif)
+    val monthValue = newText(context, "", 17f, AppColors.ink, AppFont.sansMedium)
+    val dayValue = newText(context, "", 17f, AppColors.ink, AppFont.sansMedium)
+    val summary = newText(context, "", 11.5f, AppColors.cinnabar, AppFont.sansMedium).apply {
+        gravity = Gravity.CENTER
+        setPadding(0, context.dp(12), 0, 0)
+    }
+
+    val leapChip = newText(context, "闰月", 10f, AppColors.cinnabar, AppFont.sansMedium).apply {
+        gravity = Gravity.CENTER
+        setPadding(context.dp(12), context.dp(5), context.dp(12), context.dp(5))
+        isClickable = true
+        isFocusable = true
+    }
+
+    fun updateLabels() {
+        normalizeLeap()
+        yearValue.text = "$year 年"
+        monthValue.text = "${LunarDate.monthName(month)}${if (leap) "（闰）" else ""}"
+        dayValue.text = LunarDate.dayName(day)
+        val lunar = LunarDateValue(year, month, day, leap)
+        val solar = LunarDate.toSolar(lunar)
+        summary.text = if (solar == null) {
+            "这个农历日期不存在，请换一个"
+        } else {
+            "${lunar.fullLabel} · 公历 ${solar.format(DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA))}"
+        }
+        val leapMonth = LunarDate.leapMonthOf(year)
+        leapChip.visibility = if (leapMonth == month) View.VISIBLE else View.GONE
+        leapChip.background = roundedDrawable(
+            context,
+            if (leap) AppColors.cinnabar else AppColors.paperDeep,
+            14f,
+            if (leap) 0f else 0.8f,
+            if (leap) Color.TRANSPARENT else AppColors.line,
+        )
+        leapChip.setTextColor(if (leap) AppColors.cream else AppColors.muted)
+    }
+
+    val yearRow = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(context.dp(5), context.dp(5), context.dp(5), context.dp(5))
+        background = roundedDrawable(context, AppColors.paperDeep, 18f)
+    }
+    var lunarYearPicker: NumberPicker? = null
+    yearRow.addView(dateArrow(context, "‹", "上一年", 46) {
+        if (year > minYear) {
+            year--
+            updateLabels()
+            lunarYearPicker?.value = year
+        }
+    })
+    yearValue.gravity = Gravity.CENTER
+    yearRow.addView(yearValue, LinearLayout.LayoutParams(0, context.dp(52), 1f))
+    yearRow.addView(dateArrow(context, "›", "下一年", 46) {
+        if (year < maxYear) {
+            year++
+            updateLabels()
+            lunarYearPicker?.value = year
+        }
+    })
+    card.addView(yearRow)
+    val lunarWheel = NumberPicker(context).apply {
+        minValue = minYear
+        maxValue = maxYear
+        value = year
+        wrapSelectorWheel = false
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        setFormatter { value -> "${value}年" }
+        setOnValueChangedListener { _, _, newValue ->
+            if (year != newValue) {
+                year = newValue
+                updateLabels()
+            }
+        }
+    }
+    lunarYearPicker = lunarWheel
+    card.addView(lunarWheel, LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        context.dp(100),
+    ))
+
+    fun adjustRow(
+        label: String,
+        value: TextView,
+        onPrev: () -> Unit,
+        onNext: () -> Unit,
+    ): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, context.dp(8), 0, 0)
+            addView(newText(context, label, 11f, AppColors.muted, AppFont.sans).apply {
+                setPadding(context.dp(4), 0, 0, 0)
+            }, LinearLayout.LayoutParams(context.dp(60), ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(dateArrow(context, "‹", "上一个$label", 34, onPrev))
+            addView(value, LinearLayout.LayoutParams(0, context.dp(34), 1f).apply {
+                gravity = Gravity.CENTER
+            })
+            value.gravity = Gravity.CENTER
+            addView(dateArrow(context, "›", "下一个$label", 34, onNext))
+        }
+    }
+
+    card.addView(adjustRow("月份", monthValue, {
+        month = if (month > 1) month - 1 else 12
+        leap = false
+        updateLabels()
+    }, {
+        month = if (month < 12) month + 1 else 1
+        leap = false
+        updateLabels()
+    }))
+    card.addView(adjustRow("日期", dayValue, {
+        val maxDay = LunarDate.daysInMonth(year, month, leap)
+        day = if (day > 1) day - 1 else maxDay
+        updateLabels()
+    }, {
+        val maxDay = LunarDate.daysInMonth(year, month, leap)
+        day = if (day < maxDay) day + 1 else 1
+        updateLabels()
+    }))
+    card.addView(leapChip, LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+    ).apply {
+        topMargin = context.dp(8)
+        leftMargin = context.dp(4)
+    })
+    leapChip.setOnClickListener {
+        if (LunarDate.leapMonthOf(year) == month) {
+            leap = !leap
+            updateLabels()
+        }
+    }
+    card.addView(summary)
+
+    val actions = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.END or Gravity.CENTER_VERTICAL
+        setPadding(0, context.dp(12), 0, 0)
+    }
+    val todayButton = textButton(context, "今天", AppColors.cinnabar).apply {
+        setOnClickListener {
+            val value = LunarDate.fromSolar(LocalDate.now())
+            if (value != null) {
+                year = value.year
+                month = value.month
+                day = value.day
+                leap = value.leap
+                updateLabels()
+            }
+        }
+    }
+    actions.addView(todayButton, LinearLayout.LayoutParams(0, context.dp(44), 1f))
+    val cancel = dialogButton(context, "取消", false)
+    cancel.setOnClickListener { dialog.dismiss() }
+    actions.addView(cancel)
+    val confirm = dialogButton(context, "选好了", true)
+    confirm.setOnClickListener {
+        val lunar = LunarDateValue(year, month, day, leap)
+        val solar = LunarDate.toSolar(lunar)
+        if (solar == null) {
+            (context as? MainActivity)?.showNotice("这个农历日期不存在")
+            return@setOnClickListener
+        }
+        onSelected(lunar, solar)
+        dialog.dismiss()
+    }
+    actions.addView(confirm)
+    card.addView(actions)
+
+    updateLabels()
+    dialog.setContentView(card)
+    dialog.show()
+}
 
 fun showInfoDialog(
     context: Context,

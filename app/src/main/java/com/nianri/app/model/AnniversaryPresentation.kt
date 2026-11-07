@@ -37,6 +37,9 @@ data class AnniversaryDisplay(
 }
 
 fun Anniversary.display(today: LocalDate = LocalDate.now()): AnniversaryDisplay {
+    if (lunar && lunarValue != null) {
+        return lunarDisplay(today)
+    }
     if (recurring) {
         if (date.isAfter(today)) {
             val days = daysBetween(today, date)
@@ -131,6 +134,59 @@ fun Anniversary.display(today: LocalDate = LocalDate.now()): AnniversaryDisplay 
     }
 }
 
+private fun Anniversary.lunarDisplay(today: LocalDate): AnniversaryDisplay {
+    val value = lunarValue ?: return display(today)
+    val target = if (recurring) {
+        LunarDate.nextOccurrence(value, today) ?: date
+    } else {
+        LunarDate.toSolar(value) ?: date
+    }
+    val days = daysBetween(today, target)
+    val targetLunar = LunarDate.fromSolar(target)
+    val years = (targetLunar?.year ?: value.year) - value.year
+    val startFuture = date.isAfter(today)
+    val isFuture = if (recurring) startFuture else target.isAfter(today)
+    val isToday = target == today
+    val isPast = !recurring && target.isBefore(today)
+    val together = if (!date.isAfter(today)) daysBetween(date, today) + 1 else null
+    val caption = when {
+        isToday && recurring -> "今天，是你们的${cnAnniversary(years)}。"
+        isToday -> "农历 ${value.shortLabel}，愿这一天被好好收藏。"
+        recurring -> "距离${cnAnniversary(maxOf(1, years))} · 还有 $days 天"
+        isPast -> "发生于 农历 ${value.shortLabel}"
+        else -> "期待 · 农历 ${value.shortLabel}"
+    }
+    return AnniversaryDisplay(
+        kicker = when {
+            isToday -> ""
+            isPast -> "已经"
+            isFuture -> "还有"
+            else -> "相伴第"
+        },
+        big = when {
+            isToday -> "今天"
+            recurring && !isFuture -> (together ?: 1L).toString()
+            isPast -> (-days).toString()
+            else -> days.toString()
+        },
+        unit = if (isToday) "" else "天",
+        caption = caption,
+        badge = when {
+            isToday -> "今天"
+            recurring -> "农历"
+            isPast -> "已走过"
+            else -> "倒数"
+        },
+        isToday = isToday,
+        isPast = isPast,
+        isCountdown = isFuture && !isPast,
+        daysUntilNext = if (isPast) Long.MAX_VALUE else days,
+        nextDate = target,
+        togetherDays = together,
+        years = years.takeIf { recurring },
+    )
+}
+
 /** 首页顺序：今天、即将到来、已经过去的单次倒数日。 */
 fun List<Anniversary>.sortedForHome(today: LocalDate = LocalDate.now()): List<Anniversary> {
     val manual = filter { it.manualOrder != null }
@@ -149,6 +205,14 @@ fun List<Anniversary>.heroForHome(today: LocalDate = LocalDate.now()): Anniversa
     sortedForHome(today).firstOrNull()
 
 fun Anniversary.dateLine(): String {
+    val lunarDate = lunarValue
+    if (lunar && lunarDate != null) {
+        return if (recurring) {
+            "每年农历 ${lunarDate.shortLabel}"
+        } else {
+            "农历 ${lunarDate.shortLabel} · 倒数日"
+        }
+    }
     return if (recurring) {
         "每年 ${date.monthDayCn()}"
     } else {
@@ -164,6 +228,21 @@ data class Milestone(
 
 fun Anniversary.upcomingMilestones(today: LocalDate = LocalDate.now(), limit: Int = 3): List<Milestone> {
     if (!recurring || date.isAfter(today)) return emptyList()
+    val lunarDate = lunarValue
+    if (lunar && lunarDate != null) {
+        val milestones = mutableListOf<Milestone>()
+        val startLunarYear = LunarDate.fromSolar(today)?.year ?: lunarDate.year
+        for (year in startLunarYear..(startLunarYear + 30).coerceAtMost(2100)) {
+            if (milestones.size >= limit) break
+            val candidate = LunarDate.toSolar(lunarDate.copy(year = year)) ?: continue
+            if (candidate.isBefore(today)) continue
+            val years = year - lunarDate.year
+            if (years > 0) {
+                milestones.add(Milestone(years, candidate, daysBetween(today, candidate)))
+            }
+        }
+        return milestones
+    }
     val milestones = mutableListOf<Milestone>()
     var cursor = nextAnnualDate(date, today)
     if (cursor == today) {

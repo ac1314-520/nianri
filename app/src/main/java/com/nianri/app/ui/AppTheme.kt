@@ -17,21 +17,23 @@ import android.widget.TextView
 import kotlin.math.roundToInt
 
 object AppColors {
-    val paper = Color.rgb(246, 241, 232)
-    val paperDeep = Color.rgb(239, 230, 217)
-    val cream = Color.rgb(255, 250, 242)
-    val creamDeep = Color.rgb(252, 245, 234)
-    val ink = Color.rgb(39, 35, 30)
-    val inkSoft = Color.rgb(86, 78, 67)
-    val muted = Color.rgb(145, 135, 119)
-    val faint = Color.rgb(184, 172, 155)
-    val line = Color.rgb(228, 217, 202)
-    val cinnabar = Color.rgb(176, 82, 56)
-    val cinnabarDeep = Color.rgb(129, 54, 36)
-    val cinnabarSoft = Color.rgb(241, 222, 212)
-    val gold = Color.rgb(196, 162, 107)
+    // Claude DESIGN.md direction: warm cream canvas, coral voltage,
+    // warm ink, hairline borders, almost no shadow.
+    val paper = Color.rgb(250, 249, 245)
+    val paperDeep = Color.rgb(245, 240, 232)
+    val cream = Color.rgb(255, 253, 249)
+    val creamDeep = Color.rgb(250, 246, 238)
+    val ink = Color.rgb(20, 20, 19)
+    val inkSoft = Color.rgb(61, 61, 58)
+    val muted = Color.rgb(108, 106, 100)
+    val faint = Color.rgb(142, 139, 130)
+    val line = Color.rgb(230, 223, 216)
+    val cinnabar = Color.rgb(204, 120, 92)
+    val cinnabarDeep = Color.rgb(169, 88, 62)
+    val cinnabarSoft = Color.rgb(243, 227, 219)
+    val gold = Color.rgb(196, 154, 90)
     val sage = Color.rgb(126, 139, 116)
-    val whiteWarm = Color.rgb(255, 252, 247)
+    val whiteWarm = Color.rgb(255, 253, 249)
 }
 
 object AppFont {

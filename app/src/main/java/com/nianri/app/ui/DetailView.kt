@@ -13,6 +13,8 @@ import android.widget.TextView
 import com.nianri.app.MainActivity
 import com.nianri.app.R
 import com.nianri.app.data.AppPreferences
+import com.nianri.app.data.MusicStore
+import com.nianri.app.data.PhotoStore
 import com.nianri.app.model.AccentPalette
 import com.nianri.app.model.Anniversary
 import com.nianri.app.model.ReminderAdvance
@@ -55,7 +57,7 @@ class DetailView(
 
         column.addView(buildCover(event, display.isToday), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            host.dp(300),
+            host.dp(316),
         ).apply { topMargin = host.dp(12) })
 
         column.addView(buildIdentity(event, display.badge), LinearLayout.LayoutParams(
@@ -63,10 +65,10 @@ class DetailView(
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = host.dp(22) })
 
-        column.addView(buildCount(display), LinearLayout.LayoutParams(
+        column.addView(buildCount(event, display), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = host.dp(22) })
+        ).apply { topMargin = host.dp(18) })
 
         column.addView(buildMilestones(event), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -75,6 +77,13 @@ class DetailView(
 
         if (event.note.isNotBlank()) {
             column.addView(buildNote(event.note), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = host.dp(26) })
+        }
+
+        if (!event.musicPath.isNullOrBlank() && MusicStore.exists(host, event.musicPath)) {
+            column.addView(buildMusic(event), LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = host.dp(26) })
@@ -110,12 +119,12 @@ class DetailView(
     private fun buildCover(event: Anniversary, isToday: Boolean): View {
         val accent = AccentPalette.of(event.accentIndex)
         val cover = FrameLayout(host).apply {
-            background = roundedDrawable(host, accent.deep, 30f)
+            background = roundedDrawable(host, accent.deep, 28f)
             clipToOutline = true
-            elevation = host.dpf(4f)
+            elevation = host.dpf(0f)
         }
         val art = PhotoArtView(host).apply {
-            setCornerRadiusDp(30f)
+            setCornerRadiusDp(28f)
             setAccentColors(accent.color, accent.deep)
             setTopScrimEnabled(true)
             setFitWideImages(true)
@@ -131,7 +140,6 @@ class DetailView(
                 FrameLayout.LayoutParams.MATCH_PARENT,
             ))
         }
-
         val bar = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -200,15 +208,20 @@ class DetailView(
             }
         })
         box.addView(overline)
-        box.addView(newText(host, event.title, 28f, AppColors.ink, AppFont.serif).apply {
+        box.addView(newText(host, event.title, 30f, AppColors.ink, AppFont.serif).apply {
             setPadding(0, host.dp(10), 0, 0)
             maxLines = 3
             setLineSpacing(host.dpf(3f), 1f)
         })
+        val lunarText = if (event.lunar && event.lunarValue != null) {
+            " · 农历 ${event.lunarValue!!.shortLabel}"
+        } else {
+            ""
+        }
         box.addView(newText(
             host,
-            if (event.recurring) "始于 ${event.date.fullCnWithWeek()}"
-            else event.date.fullCnWithWeek(),
+            if (event.recurring) "始于 ${event.date.fullCnWithWeek()}$lunarText"
+            else event.date.fullCnWithWeek() + lunarText,
             11f,
             AppColors.muted,
             AppFont.sans,
@@ -219,67 +232,8 @@ class DetailView(
         return box
     }
 
-    private fun buildCount(display: com.nianri.app.model.AnniversaryDisplay): View {
-        val box = LinearLayout(host).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, host.dp(20), 0, host.dp(2))
-        }
-        box.addView(newText(
-            host,
-            display.kicker.ifBlank { "这一天" },
-            9.5f,
-            AppColors.muted,
-            AppFont.sansMedium,
-            0.14f,
-        ))
-        val countLine = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.BOTTOM
-            setPadding(0, host.dp(2), 0, 0)
-        }
-        val big = newText(
-            host,
-            display.big,
-            when {
-                display.big == "今天" -> 54f
-                display.big.length >= 5 -> 64f
-                else -> 80f
-            },
-            if (display.isToday || display.isCountdown) AppColors.cinnabar else AppColors.ink,
-            AppFont.serif,
-        ).apply {
-            includeFontPadding = false
-            setLineSpacing(0f, 1f)
-            fontFeatureSettings = "lnum"
-        }
-        countLine.addView(big)
-        if (display.unit.isNotEmpty()) {
-            countLine.addView(newText(
-                host,
-                display.unit,
-                14f,
-                AppColors.muted,
-                AppFont.sans,
-            ).apply { setPadding(host.dp(8), 0, 0, host.dp(16)) })
-        }
-        box.addView(countLine)
-        box.addView(newText(
-            host,
-            display.caption,
-            12.5f,
-            AppColors.inkSoft,
-            AppFont.sans,
-        ).apply {
-            setPadding(0, host.dp(12), 0, 0)
-            setLineSpacing(host.dpf(5f), 1f)
-        })
-        box.addView(hairline(host).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                (host.resources.displayMetrics.density * 0.7f).toInt().coerceAtLeast(1),
-            ).apply { topMargin = host.dp(24) }
-        })
-        return box
+    private fun buildCount(event: Anniversary, display: com.nianri.app.model.AnniversaryDisplay): View {
+        return AnniversaryCountView(host, event, today, display)
     }
 
     private fun buildMilestones(event: Anniversary): View {
@@ -290,7 +244,7 @@ class DetailView(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(newText(host, "时光刻度", 18f, AppColors.ink, AppFont.serif), LinearLayout.LayoutParams(
+        header.addView(newText(host, "时光刻度", 19f, AppColors.ink, AppFont.serif), LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1f,
@@ -373,7 +327,7 @@ class DetailView(
             })
             card.addView(row)
             if (index != milestones.lastIndex) {
-                card.addView(hairline(host, Color.argb(120, 228, 217, 202)).apply {
+                card.addView(hairline(host, Color.argb(150, 230, 223, 216)).apply {
                     layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         1,
@@ -392,7 +346,7 @@ class DetailView(
         val box = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
         }
-        box.addView(newText(host, "写在这天", 18f, AppColors.ink, AppFont.serif))
+        box.addView(newText(host, "写在这天", 19f, AppColors.ink, AppFont.serif))
         val card = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             background = roundedDrawable(host, AppColors.cream, 22f, 0.8f, AppColors.line)
@@ -413,12 +367,38 @@ class DetailView(
         return box
     }
 
+    private fun buildMusic(event: Anniversary): View {
+        val box = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val head = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        head.addView(newText(host, "这一天的声音", 18f, AppColors.ink, AppFont.serif),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        head.addView(newText(host, "MUSIC", 8f, AppColors.faint, AppFont.sansMedium, 0.14f))
+        box.addView(head)
+        val music = MusicAttachmentView(
+            host = host,
+            editable = false,
+            onPick = {},
+            onRemove = {},
+        )
+        music.bind(event.musicPath, event.musicTitle)
+        box.addView(music, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(12) })
+        return box
+    }
+
     private fun buildReminder(event: Anniversary): View {
         val prefs = AppPreferences.get(host)
         val box = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
         }
-        box.addView(newText(host, "这一天的提醒", 18f, AppColors.ink, AppFont.serif))
+        box.addView(newText(host, "这一天的提醒", 19f, AppColors.ink, AppFont.serif))
         val card = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             background = roundedDrawable(host, AppColors.cream, 22f, 0.8f, AppColors.line)
@@ -475,7 +455,7 @@ class DetailView(
         card.addView(row)
 
         if (event.reminderEnabled && !ReminderEngine.notificationsAllowed(host)) {
-            card.addView(hairline(host, Color.argb(120, 228, 217, 202)).apply {
+            card.addView(hairline(host, Color.argb(150, 230, 223, 216)).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, 1,
                 ).apply { topMargin = host.dp(12) }
@@ -492,7 +472,7 @@ class DetailView(
                 setOnClickListener { host.openNotificationSettings() }
             })
         } else if (event.reminderEnabled && !ReminderScheduler.hasExactAlarmAccess(host)) {
-            card.addView(hairline(host, Color.argb(120, 228, 217, 202)).apply {
+            card.addView(hairline(host, Color.argb(150, 230, 223, 216)).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, 1,
                 ).apply { topMargin = host.dp(12) }
@@ -525,16 +505,16 @@ class DetailView(
             isFocusable = true
             background = rippleOn(
                 host,
-                roundedDrawable(host, AppColors.cream, 26f, 1f, AppColors.line),
-                0x1427231E,
+                roundedDrawable(host, AppColors.ink, 26f),
+                0x33FFFDF9,
             )
         }
         val icon = ImageView(host).apply {
             setImageResource(R.drawable.ic_edit)
-            setColorFilter(AppColors.inkSoft)
+            setColorFilter(AppColors.cream)
         }
         button.addView(icon, LinearLayout.LayoutParams(host.dp(17), host.dp(17)))
-        button.addView(newText(host, "编辑这个日子", 14f, AppColors.ink, AppFont.sansMedium).apply {
+        button.addView(newText(host, "编辑这个日子", 14f, AppColors.cream, AppFont.sansMedium).apply {
             setPadding(host.dp(9), 0, 0, 0)
         })
         button.setOnClickListener { host.openEditor(event) }

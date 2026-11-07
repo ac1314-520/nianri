@@ -1,8 +1,8 @@
 {
-  "versionCode": 13,
-  "versionName": "2.6.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.6.0.apk",
-  "sha256": "9c03f2aa06751f48eec313fabc3fabea244a81af0ab6d5d76a6e0cccae7fae32",
-  "notes": "• 小组件新增 2×2 / 4×2 / 4×4 三种尺寸\n• 每个小组件可单独选择纪念日，支持重新配置\n• 小组件显示封面照片、标题、剩余天数和日期\n• 数据变化后立即刷新，每天自动更新",
+  "versionCode": 29,
+  "versionName": "2.20.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.20.0.apk",
+  "sha256": "e8ab649cf0d4fe562164ab9822098940bd41985712ed22653ed5745acbfa82be",
+  "notes": "• 移除实况照片功能\n• 保留普通照片、GIF/WebP 动图\n• 保留纪念日与日记音乐播放\n• 保留公历/农历选择与农历倒数",
   "publishedAt": "2026-11-07"
 }

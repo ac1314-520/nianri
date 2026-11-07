@@ -55,16 +55,9 @@ object ReminderEngine {
     }
 
     private fun nextReminderOccurrence(event: Anniversary, today: LocalDate): LocalDate? {
-        return if (event.recurring) {
-            if (event.date.isAfter(today)) {
-                // 每年纪念尚未开始，先把开始日当作第一次。
-                event.date
-            } else {
-                nextAnnualDate(event.date, today)
-            }
-        } else {
-            if (event.date.isBefore(today)) null else event.date
-        }
+        val occurrence = event.nextOccurrence(today)
+        if (!event.recurring && occurrence.isBefore(today)) return null
+        return occurrence
     }
 
     private fun postNotification(

@@ -17,13 +17,55 @@ data class Anniversary(
     val recurring: Boolean = true,
     val note: String = "",
     val imagePath: String? = null,
+    val musicPath: String? = null,
+    val musicTitle: String? = null,
     val accentIndex: Int = 0,
     val reminderEnabled: Boolean = true,
     val reminderAdvanceDays: Int = 0,
     val reminderMinuteOfDay: Int? = null,
     val manualOrder: Int? = null,
+    val lunar: Boolean = false,
+    val lunarYear: Int? = null,
+    val lunarMonth: Int? = null,
+    val lunarDay: Int? = null,
+    val lunarLeap: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
 ) {
+    val lunarValue: LunarDateValue?
+        get() {
+            val y = lunarYear ?: return null
+            val m = lunarMonth ?: return null
+            val d = lunarDay ?: return null
+            return LunarDateValue(y, m, d, lunarLeap)
+        }
+
+    /** 下一次公历发生日：农历事件按农历年计算，普通事件按公历。 */
+    fun nextOccurrence(today: LocalDate = LocalDate.now()): LocalDate {
+        val lunarDate = lunarValue
+        if (lunar && lunarDate != null) {
+            if (!recurring) return LunarDate.toSolar(lunarDate) ?: date
+            return LunarDate.nextOccurrence(lunarDate, today) ?: date
+        }
+        if (!recurring) return date
+        return if (date.isAfter(today)) date else nextSolarOccurrence(date, today)
+    }
+
+    /** 给提醒调度用：返回 after 之后的下一次发生日。 */
+    fun occurrenceAfter(after: LocalDate): LocalDate? {
+        val lunarDate = lunarValue
+        if (lunar && lunarDate != null && recurring) {
+            return LunarDate.nextOccurrence(lunarDate, after.plusDays(1))
+        }
+        if (!recurring) return null
+        return nextSolarOccurrence(date, after.plusDays(1))
+    }
+
+    private fun nextSolarOccurrence(start: LocalDate, today: LocalDate): LocalDate {
+        var candidate = start.withYear(today.year)
+        if (candidate.isBefore(today)) candidate = start.withYear(today.year + 1)
+        return candidate
+    }
+
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
         put("title", title)
@@ -31,11 +73,18 @@ data class Anniversary(
         put("recurring", recurring)
         put("note", note)
         put("imagePath", imagePath ?: JSONObject.NULL)
+        put("musicPath", musicPath ?: JSONObject.NULL)
+        put("musicTitle", musicTitle ?: JSONObject.NULL)
         put("accentIndex", accentIndex)
         put("reminderEnabled", reminderEnabled)
         put("reminderAdvanceDays", reminderAdvanceDays)
         put("reminderMinuteOfDay", reminderMinuteOfDay ?: JSONObject.NULL)
         put("manualOrder", manualOrder ?: JSONObject.NULL)
+        put("lunar", lunar)
+        put("lunarYear", lunarYear ?: JSONObject.NULL)
+        put("lunarMonth", lunarMonth ?: JSONObject.NULL)
+        put("lunarDay", lunarDay ?: JSONObject.NULL)
+        put("lunarLeap", lunarLeap)
         put("createdAt", createdAt)
     }
 
@@ -55,6 +104,12 @@ data class Anniversary(
                     imagePath = json.optString("imagePath").takeIf {
                         it.isNotBlank() && it != "null"
                     },
+                    musicPath = json.optString("musicPath").takeIf {
+                        it.isNotBlank() && it != "null"
+                    },
+                    musicTitle = json.optString("musicTitle").takeIf {
+                        it.isNotBlank() && it != "null"
+                    },
                     accentIndex = json.optInt("accentIndex", 0).coerceIn(0, AccentPalette.size - 1),
                     reminderEnabled = json.optBoolean("reminderEnabled", true),
                     reminderAdvanceDays = json.optInt("reminderAdvanceDays", 0)
@@ -72,6 +127,23 @@ data class Anniversary(
                     } else {
                         null
                     },
+                    lunar = json.optBoolean("lunar", false),
+                    lunarYear = if (json.has("lunarYear") && !json.isNull("lunarYear")) {
+                        json.optInt("lunarYear", 0).takeIf { it in 1900..2100 }
+                    } else {
+                        null
+                    },
+                    lunarMonth = if (json.has("lunarMonth") && !json.isNull("lunarMonth")) {
+                        json.optInt("lunarMonth", 0).takeIf { it in 1..12 }
+                    } else {
+                        null
+                    },
+                    lunarDay = if (json.has("lunarDay") && !json.isNull("lunarDay")) {
+                        json.optInt("lunarDay", 0).takeIf { it in 1..30 }
+                    } else {
+                        null
+                    },
+                    lunarLeap = json.optBoolean("lunarLeap", false),
                     createdAt = json.optLong("createdAt", System.currentTimeMillis()),
                 )
             } catch (_: Exception) {
@@ -85,7 +157,7 @@ object AccentPalette {
     data class Accent(val color: Int, val deep: Int, val soft: Int)
 
     val colors: IntArray = intArrayOf(
-        0xFFB05238.toInt(), // 朱砂
+        0xFFCC785C.toInt(), // 珊瑚
         0xFF7E8B74.toInt(), // 苔绿
         0xFF6F8190.toInt(), // 远山
         0xFFB08A54.toInt(), // 琥珀
@@ -105,7 +177,7 @@ object AccentPalette {
     )
 
     private val deeps = intArrayOf(
-        0xFF7C3524.toInt(),
+        0xFFA9583E.toInt(),
         0xFF52604A.toInt(),
         0xFF455865.toInt(),
         0xFF7B5A2F.toInt(),
@@ -120,7 +192,7 @@ object AccentPalette {
     )
 
     private val softs = intArrayOf(
-        0xFFF1DED4.toInt(),
+        0xFFF3E3DB.toInt(),
         0xFFE4E8DF.toInt(),
         0xFFDFE6EA.toInt(),
         0xFFF0E5D2.toInt(),

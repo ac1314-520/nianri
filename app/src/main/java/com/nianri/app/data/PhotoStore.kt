@@ -3,6 +3,10 @@ package com.nianri.app.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.Drawable
+import android.os.Build
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
@@ -40,6 +44,35 @@ object PhotoStore {
      * 把用户选择的图片复制进应用私有目录，最长边限制在 2200px，
      * 修正 EXIF 方向并压缩。返回内部文件名。
      */
+    private fun animatedExtensionByHeader(file: File): String? {
+        return runCatching {
+            val header = ByteArray(16)
+            java.io.FileInputStream(file).use { input ->
+                val read = input.read(header)
+                if (read < 12) return@use null
+            }
+            if (header[0] == 'G'.code.toByte() &&
+                header[1] == 'I'.code.toByte() &&
+                header[2] == 'F'.code.toByte() &&
+                header[3] == '8'.code.toByte()
+            ) {
+                return "gif"
+            }
+            if (header[0] == 'R'.code.toByte() &&
+                header[1] == 'I'.code.toByte() &&
+                header[2] == 'F'.code.toByte() &&
+                header[3] == 'F'.code.toByte() &&
+                header[8] == 'W'.code.toByte() &&
+                header[9] == 'E'.code.toByte() &&
+                header[10] == 'B'.code.toByte() &&
+                header[11] == 'P'.code.toByte()
+            ) {
+                return "webp"
+            }
+            null
+        }.getOrNull()
+    }
+
     fun importImage(
         context: Context,
         uri: Uri,
@@ -71,6 +104,26 @@ object PhotoStore {
                     }
                 } ?: throw IllegalArgumentException("无法读取这张图片")
                 if (copied == 0L) throw IllegalArgumentException("图片内容为空")
+
+                val mime = resolver.getType(uri).orEmpty()
+                val displayName = queryDisplayName(resolver, uri)
+
+                val animatedExt = animatedExtensionByHeader(temp) ?: when {
+                    mime == "image/gif" || displayName.endsWith(".gif", true) -> "gif"
+                    mime == "image/webp" || displayName.endsWith(".webp", true) -> "webp"
+                    else -> null
+                }
+                if (animatedExt != null) {
+                    val dir = File(context.filesDir, "photos").apply { mkdirs() }
+                    val animated = File(
+                        dir,
+                        "anim_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.$animatedExt",
+                    )
+                    temp.copyTo(animated, overwrite = true)
+                    output = animated
+                    main.post { onFinished(animated.name, null) }
+                    return@execute
+                }
 
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeFile(temp.absolutePath, bounds)
@@ -129,6 +182,74 @@ object PhotoStore {
                 temp?.delete()
             }
         }
+    }
+
+    fun isAnimated(name: String?): Boolean {
+        if (name.isNullOrBlank()) return false
+        return name.endsWith(".gif", true) || name.endsWith(".webp", true)
+    }
+
+    /**
+     * 只有 API 28+ 才能用 ImageDecoder 播放动画；低版本回退到第一帧。
+     */
+    fun loadAnimated(
+        context: Context,
+        name: String,
+        maxSide: Int,
+        onLoaded: (Drawable?) -> Unit,
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            main.post { onLoaded(null) }
+            return
+        }
+        io.execute {
+            try {
+                val file = fileFor(context, name)
+                if (!file.isFile) {
+                    main.post { onLoaded(null) }
+                    return@execute
+                }
+                val source = ImageDecoder.createSource(file)
+                val drawable = ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
+                    val longest = maxOf(info.size.width, info.size.height)
+                    if (longest > maxSide) {
+                        val scale = maxSide.toFloat() / longest
+                        decoder.setTargetSize(
+                            (info.size.width * scale).toInt().coerceAtLeast(1),
+                            (info.size.height * scale).toInt().coerceAtLeast(1),
+                        )
+                    }
+                }
+                if (drawable is AnimatedImageDrawable) {
+                    drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
+                }
+                main.post { onLoaded(drawable) }
+            } catch (_: Throwable) {
+                main.post { onLoaded(null) }
+            }
+        }
+    }
+
+    private fun queryDisplayName(
+        resolver: android.content.ContentResolver,
+        uri: Uri,
+    ): String {
+        var name = ""
+        runCatching {
+            resolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (index >= 0) name = cursor.getString(index).orEmpty()
+                }
+            }
+        }
+        return name
     }
 
     fun loadImage(

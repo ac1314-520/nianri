@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="paper">#F6F1E8</color>
-    <color name="paper_deep">#EFE6D9</color>
-    <color name="ink">#27231E</color>
-    <color name="muted">#918777</color>
-    <color name="cinnabar">#B05238</color>
-    <color name="cream">#FFF9EF</color>
-    <color name="icon_bg">#F4ECDF</color>
+    <color name="paper">#FAF9F5</color>
+    <color name="paper_deep">#F5F0E8</color>
+    <color name="ink">#141413</color>
+    <color name="muted">#6C6A64</color>
+    <color name="cinnabar">#CC785C</color>
+    <color name="cream">#FFFDF9</color>
+    <color name="icon_bg">#FAF9F5</color>
 </resources>

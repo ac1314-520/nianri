@@ -25,6 +25,9 @@ data class DiaryEntry(
     val epochDay: Long,
     val text: String,
     val moodKey: String?,
+    val photoPath: String? = null,
+    val musicPath: String? = null,
+    val musicTitle: String? = null,
 )
 
 data class CheckInPlan(
@@ -136,6 +139,15 @@ object WorkbenchStore {
                 epochDay = o.optLong("epochDay"),
                 text = text,
                 moodKey = o.optString("mood").takeIf { it.isNotBlank() },
+                photoPath = o.optString("photoPath").takeIf {
+                    it.isNotBlank() && it != "null"
+                },
+                musicPath = o.optString("musicPath").takeIf {
+                    it.isNotBlank() && it != "null"
+                },
+                musicTitle = o.optString("musicTitle").takeIf {
+                    it.isNotBlank() && it != "null"
+                },
             )
         }
         val plans = root.optJSONArray("plans").objects().mapNotNull { o ->
@@ -211,6 +223,9 @@ object WorkbenchStore {
                     put("epochDay", entry.epochDay)
                     put("text", entry.text)
                     put("mood", entry.moodKey ?: "")
+                    put("photoPath", entry.photoPath ?: JSONObject.NULL)
+                    put("musicPath", entry.musicPath ?: JSONObject.NULL)
+                    put("musicTitle", entry.musicTitle ?: JSONObject.NULL)
                 })
             }
         })

@@ -9,6 +9,9 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.Drawable
+import android.os.Build
 import android.util.AttributeSet
 import android.view.View
 import com.nianri.app.data.PhotoStore
@@ -28,6 +31,7 @@ class PhotoArtView @JvmOverloads constructor(
 
     private var imageName: String? = null
     private var bitmap: Bitmap? = null
+    private var animated: Drawable? = null
     private var loadToken = 0
     private var requestedKey: String? = null
     private var accent: Int = AppColors.cinnabar
@@ -44,12 +48,12 @@ class PhotoArtView @JvmOverloads constructor(
 
     init {
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-        setLayerType(LAYER_TYPE_HARDWARE, null)
     }
 
     fun setImageName(name: String?) {
         val clean = name?.takeIf { it.isNotBlank() }
-        if (clean == imageName && (clean == null || bitmap != null)) return
+        if (clean == imageName && (clean == null || bitmap != null || animated != null)) return
+        stopAnimated(clear = true)
         imageName = clean
         bitmap = null
         backdrop?.recycle()
@@ -119,6 +123,30 @@ class PhotoArtView @JvmOverloads constructor(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         requestLoad()
+        post { startAnimated() }
+    }
+
+    override fun onDetachedFromWindow() {
+        stopAnimated(clear = false)
+        super.onDetachedFromWindow()
+    }
+
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility == VISIBLE && isAttachedToWindow) {
+            startAnimated()
+        } else if (visibility != VISIBLE) {
+            stopAnimated(clear = false)
+        }
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility == VISIBLE && isAttachedToWindow) {
+            startAnimated()
+        } else if (visibility != VISIBLE) {
+            stopAnimated(clear = false)
+        }
     }
 
     private fun updateClip() {
@@ -139,13 +167,41 @@ class PhotoArtView @JvmOverloads constructor(
         if (key == requestedKey) return
         requestedKey = key
         val token = ++loadToken
-        PhotoStore.loadImage(context, name, width, height) { loaded ->
-            if (token != loadToken) return@loadImage
-            if (loaded == null) {
-                requestedKey = null
+        if (PhotoStore.isAnimated(name) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PhotoStore.loadAnimated(context, name, maxOf(width, height).coerceAtLeast(720)) { loaded ->
+                if (token != loadToken) return@loadAnimated
+                if (loaded == null) {
+                    // 动图解码失败时至少显示首帧，不让卡片变成空白。
+                    PhotoStore.loadImage(context, name, width, height) { fallback ->
+                        if (token != loadToken) return@loadImage
+                        bitmap = fallback
+                        invalidate()
+                    }
+                } else {
+                    bitmap = null
+                    animated = loaded
+                    loaded.callback = object : Drawable.Callback {
+                        override fun invalidateDrawable(who: Drawable) = invalidate()
+                        override fun scheduleDrawable(who: Drawable, what: Runnable, whenParam: Long) {
+                            postDelayed(what, whenParam - android.os.SystemClock.uptimeMillis())
+                        }
+                        override fun unscheduleDrawable(who: Drawable, what: Runnable) {
+                            removeCallbacks(what)
+                        }
+                    }
+                    startAnimated()
+                }
+                invalidate()
             }
-            bitmap = loaded
-            invalidate()
+        } else {
+            PhotoStore.loadImage(context, name, width, height) { loaded ->
+                if (token != loadToken) return@loadImage
+                if (loaded == null) {
+                    requestedKey = null
+                }
+                bitmap = loaded
+                invalidate()
+            }
         }
     }
 
@@ -155,6 +211,7 @@ class PhotoArtView @JvmOverloads constructor(
         val save = canvas.save()
         canvas.clipPath(clipPath)
         val loaded = bitmap
+        val animation = animated
         if (loaded != null && !loaded.isRecycled) {
             if (fitWideImages && loaded.width > loaded.height * 1.12f) {
                 drawFitWithBackdrop(canvas, loaded)
@@ -162,12 +219,49 @@ class PhotoArtView @JvmOverloads constructor(
                 drawCenterCrop(canvas, loaded)
             }
             drawPhotoVeil(canvas)
+        } else if (animation != null) {
+            val animatedDrawable = animation as? AnimatedImageDrawable
+            if (animatedDrawable != null && !animatedDrawable.isRunning && isShown) {
+                runCatching { animatedDrawable.start() }
+            }
+            drawAnimatedCenterCrop(canvas, animation)
+            drawPhotoVeil(canvas)
         } else {
             drawGeneratedLandscape(canvas)
         }
         if (scrimEnabled) drawScrim(canvas)
         if (topScrimEnabled) drawTopScrim(canvas)
         canvas.restoreToCount(save)
+    }
+
+    private fun drawAnimatedCenterCrop(canvas: Canvas, drawable: Drawable) {
+        val imageWidth = drawable.intrinsicWidth.takeIf { it > 0 } ?: width
+        val imageHeight = drawable.intrinsicHeight.takeIf { it > 0 } ?: height
+        val scale = max(width / imageWidth.toFloat(), height / imageHeight.toFloat())
+        val drawW = imageWidth * scale
+        val drawH = imageHeight * scale
+        val left = (width - drawW) / 2f
+        val top = (height - drawH) / 2f
+        val save = canvas.save()
+        canvas.translate(left, top)
+        canvas.scale(scale, scale)
+        drawable.setBounds(0, 0, imageWidth, imageHeight)
+        drawable.draw(canvas)
+        canvas.restoreToCount(save)
+    }
+
+    private fun startAnimated() {
+        val drawable = animated as? AnimatedImageDrawable ?: return
+        if (!isAttachedToWindow || !isShown) return
+        runCatching { drawable.start() }
+    }
+
+    private fun stopAnimated(clear: Boolean) {
+        (animated as? AnimatedImageDrawable)?.let { runCatching { it.stop() } }
+        if (clear) {
+            animated?.callback = null
+            animated = null
+        }
     }
 
     private fun drawFitWithBackdrop(canvas: Canvas, image: Bitmap) {

@@ -427,7 +427,7 @@ class SettingsView(
     }
 
     private fun buildFeedbackContactNote(): View {
-        val note = "备注：也可以加作者微信 $WECHAT_ID 反馈；点击微信号即可复制。"
+        val note = "备注：也可以加作者${WECHAT_NAME}的微信 $WECHAT_ID 反馈；点击微信号即可复制。"
         val start = note.indexOf(WECHAT_ID)
         val spannable = SpannableString(note)
         if (start >= 0) {
@@ -444,7 +444,7 @@ class SettingsView(
             setLineSpacing(host.dpf(3f), 1f)
             isClickable = true
             isFocusable = true
-            contentDescription = "备注：也可以加作者微信 $WECHAT_ID 反馈，点击复制微信号"
+            contentDescription = "备注：也可以加作者${WECHAT_NAME}的微信 $WECHAT_ID 反馈，点击复制微信号"
             background = rippleOn(host, roundedDrawable(host, Color.TRANSPARENT, 12f), 0x1427231E)
             setOnClickListener {
                 host.copyTextToClipboard(
@@ -707,5 +707,6 @@ class SettingsView(
     companion object {
         private const val FEEDBACK_ISSUE_URL = "https://github.com/ac1314-520/nianri/issues/new"
         private const val WECHAT_ID = "MiManchi13l4520"
+        private const val WECHAT_NAME = "阿尘"
     }
 }

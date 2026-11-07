@@ -60,6 +60,7 @@ import com.nianri.app.update.InstallResult
 import com.nianri.app.update.UpdateCheckResult
 import com.nianri.app.update.UpdateInfo
 import com.nianri.app.update.UpdateManager
+import com.nianri.app.widget.WidgetUpdater
 import java.io.File
 import java.net.URI
 import java.util.concurrent.TimeUnit
@@ -131,6 +132,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        WidgetUpdater.updateAll(this)
         if (screen == Screen.SETTINGS) {
             settingsView?.refresh()
         }
@@ -365,6 +367,7 @@ class MainActivity : Activity() {
     fun onEventSaved(event: Anniversary, original: Anniversary?) {
         editorView = null
         ReminderScheduler.ensureScheduled(this)
+        WidgetUpdater.updateAll(this)
         openDetail(event)
         window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
         showNotice(if (original == null) "这一天，已经被好好收下了" else "这一页，已经重新写好")
@@ -381,6 +384,7 @@ class MainActivity : Activity() {
         AnniversaryStore.delete(this, event.id)
         AppPreferences.get(this).clearNotificationMark(event.id)
         ReminderScheduler.ensureScheduled(this)
+        WidgetUpdater.updateAll(this)
         showHome()
         showNotice("这一天，已经从手帐里取下")
     }
@@ -395,6 +399,7 @@ class MainActivity : Activity() {
         AnniversaryStore.delete(this, event.id)
         AppPreferences.get(this).clearNotificationMark(event.id)
         ReminderScheduler.ensureScheduled(this)
+        WidgetUpdater.updateAll(this)
         showHome(animated = false)
 
         pendingSwipeDeleted = event
@@ -426,6 +431,7 @@ class MainActivity : Activity() {
             }
             AnniversaryStore.upsert(this, restored)
             ReminderScheduler.ensureScheduled(this)
+            WidgetUpdater.updateAll(this)
             showHome(animated = false)
             showNotice("已撤销删除")
         }

@@ -3,6 +3,7 @@ package com.nianri.app.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.nianri.app.widget.WidgetUpdater
 
 class RestoreReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -11,7 +12,10 @@ class RestoreReceiver : BroadcastReceiver() {
             Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,
-            -> ReminderScheduler.ensureScheduled(context.applicationContext)
+            -> {
+                ReminderScheduler.ensureScheduled(context.applicationContext)
+                WidgetUpdater.updateAll(context.applicationContext)
+            }
         }
     }
 }

@@ -1,8 +1,8 @@
 {
-  "versionCode": 11,
-  "versionName": "2.4.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.4.0.apk",
-  "sha256": "21cb0ce2f76f96ec0101c5f88f27599f6b17675049b0e043842248c682f09181",
-  "notes": "• 首页支持长按卡片调整顺序，顺序会保存\n• 每条纪念日可单独设置提醒时间（时:分）\n• 提醒改为按最近一次提醒精确调度，不再全局固定 9:00\n• 修复旧版数据兼容，旧纪念日默认使用设置里的默认提醒时间",
-  "publishedAt": "2026-11-06"
+  "versionCode": 12,
+  "versionName": "2.5.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.5.0.apk",
+  "sha256": "c176d0aa41f3cc9dd2adf18c37e758268ef52a80aa86306b6dabf68b22b072c6",
+  "notes": "• 新增安卓桌面小组件：最近一个纪念日、剩余天数、日期，点按打开 App\n• 小组件在 App 数据变化后立即刷新，每天自动更新\n• 保留首页长按排序与每条纪念日独立提醒时间",
+  "publishedAt": "2026-11-07"
 }

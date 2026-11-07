@@ -5,4 +5,10 @@
     <string name="notification_channel_description">在你选择的时间，轻轻提醒重要的日子</string>
     <string name="notification_channel_quiet">安静的纪念日提醒</string>
     <string name="widget_description">NianRi countdown widget</string>
+    <string name="widget_small_label">念日 · 小号</string>
+    <string name="widget_wide_label">念日 · 横版</string>
+    <string name="widget_large_label">念日 · 大号</string>
+    <string name="widget_small_description">念日小号倒计时</string>
+    <string name="widget_wide_description">念日横版倒计时</string>
+    <string name="widget_large_description">念日大号倒计时</string>
 </resources>

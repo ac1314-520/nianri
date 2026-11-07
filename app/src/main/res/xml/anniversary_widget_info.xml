@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:description="@string/widget_description"
-    android:initialLayout="@layout/widget_anniversary"
+    android:configure="com.nianri.app.widget.WidgetConfigActivity"
+    android:description="@string/widget_small_description"
+    android:initialLayout="@layout/widget_anniversary_small"
     android:minHeight="110dp"
     android:minResizeHeight="110dp"
     android:minResizeWidth="110dp"
@@ -10,4 +11,5 @@
     android:targetCellHeight="2"
     android:targetCellWidth="2"
     android:updatePeriodMillis="86400000"
-    android:widgetCategory="home_screen" />
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable" />

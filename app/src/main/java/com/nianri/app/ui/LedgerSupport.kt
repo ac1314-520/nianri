@@ -36,6 +36,7 @@ object LedgerCategories {
         LedgerCategory("人情", Color.rgb(181, 138, 90)),
         LedgerCategory("住房", Color.rgb(94, 110, 126)),
         LedgerCategory("通讯", Color.rgb(111, 138, 138)),
+        LedgerCategory("还贷", Color.rgb(138, 101, 91)),
         LedgerCategory("服饰", Color.rgb(154, 111, 134)),
         LedgerCategory("美容", Color.rgb(176, 122, 122)),
         LedgerCategory("宠物", Color.rgb(138, 123, 91)),
@@ -53,6 +54,7 @@ object LedgerCategories {
         LedgerCategory("报销", Color.rgb(111, 138, 138)),
         LedgerCategory("礼金", Color.rgb(160, 112, 98)),
         LedgerCategory("退款", Color.rgb(138, 139, 92)),
+        LedgerCategory("贷款", Color.rgb(110, 120, 144)),
         LedgerCategory("分红", Color.rgb(95, 124, 106)),
         LedgerCategory("其他", Color.rgb(142, 135, 128)),
     )

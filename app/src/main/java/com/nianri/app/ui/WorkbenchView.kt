@@ -195,7 +195,7 @@ class WorkbenchView(
             now != null -> {
                 primary = "$city  ${now.temperature}°"
                 secondary = "${now.summary} · ${now.low}°–${now.high}°"
-                tip = if (weatherLoading) "正在更新天气…" else now.tip
+                tip = if (weatherLoading) "正在更新天气…" else now.tip + " · MET Norway"
             }
             city.isNotBlank() -> {
                 primary = if (weatherLoading) "正在获取天气…" else "天气暂不可用"

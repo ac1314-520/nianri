@@ -1289,6 +1289,10 @@ class RecordsView(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = host.dp(10) })
+        content.addView(ledgerStatsCard(snapshot, entries), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
 
         if (entries.isEmpty()) {
             content.addView(emptyLedgerCard(), LinearLayout.LayoutParams(
@@ -1386,6 +1390,116 @@ class RecordsView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = host.dp(10) })
+    }
+
+    private fun ledgerBudgetCents(): Long =
+        host.getSharedPreferences("nianri_ledger", 0).getLong("budget_cents", 0L)
+
+    private fun ledgerStatsCard(snapshot: WorkbenchSnapshot, entries: List<LedgerEntry>): View {
+        val expense = entries.expenseTotal()
+        val budget = ledgerBudgetCents()
+        val remaining = (budget - expense).coerceAtLeast(0)
+        val days = entries.map { it.epochDay }.distinct().size
+        val loan = snapshot.ledger.filter { it.income && it.category == "贷款" }.sumOf { it.amountCents }
+        val repaid = snapshot.ledger.filter { !it.income && it.category == "还贷" }.sumOf { it.amountCents }
+        val debt = (loan - repaid).coerceAtLeast(0)
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(ledgerMiniStat(
+            "预算还剩",
+            if (budget > 0) formatMoney(remaining) else "未设置",
+            if (budget > 0) "日均 ${formatMoney(remaining / 30)}" else "点这里设置",
+        ) {
+            showInputDialog(
+                host,
+                "本月预算",
+                "预算只保存在本机，用来计算剩余额度。",
+                if (budget > 0) formatLedgerAmount(budget) else "",
+                "例如：10000",
+                android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL,
+            ) { value ->
+                val cents = centsFromInput(value)
+                if (cents == null) {
+                    host.showNotice("请输入大于 0 的金额")
+                    return@showInputDialog false
+                }
+                host.getSharedPreferences("nianri_ledger", 0).edit()
+                    .putLong("budget_cents", cents).apply()
+                render(preserveScroll = true)
+                true
+            }
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(ledgerMiniStat(
+            "本月有账",
+            "$days 天",
+            "点开看每天",
+        ) {
+            val text = if (entries.isEmpty()) "这个月还没有记账。" else entries
+                .groupBy { it.epochDay }
+                .toSortedMap(compareByDescending { it })
+                .entries.joinToString("\n\n") { (day, list) ->
+                    "${relativeDay(day)} · ${epochDate(day, "M月d日")}  ${list.size} 笔  支出 ${formatMoney(list.filter { !it.income }.sumOf { it.amountCents })}"
+                }
+            showInfoDialog(host, "本月有账", text)
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = host.dp(8)
+        })
+        row.addView(ledgerMiniStat(
+            "本月待还",
+            formatMoney(debt),
+            "贷款余额",
+        ) {
+            val loans = snapshot.ledger.filter { it.category == "贷款" || it.category == "还贷" }
+                .sortedByDescending { it.epochDay }
+            val text = if (loans.isEmpty()) {
+                "还没有贷款或还贷记录。在「记一笔」里选收入 → 贷款，或支出 → 还贷。"
+            } else {
+                "借入 ${formatMoney(loan)}，已还 ${formatMoney(repaid)}，余额 ${formatMoney(debt)}\n\n" +
+                    loans.take(12).joinToString("\n") {
+                        "${epochDate(it.epochDay, "M月d日")}  ${it.category}  ${if (it.income) "+" else "-"}${formatMoney(it.amountCents)}"
+                    }
+            }
+            showInfoDialog(host, "贷款与还贷", text)
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = host.dp(8)
+        })
+        return row
+    }
+
+    private fun ledgerMiniStat(title: String, value: String, detail: String, onClick: () -> Unit): View {
+        val card = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            isClickable = true
+            isFocusable = true
+            setPadding(host.dp(11), host.dp(10), host.dp(8), host.dp(10))
+            background = roundedDrawable(host, AppColors.paperDeep, 17f, 0.7f, AppColors.line)
+            setOnClickListener { onClick() }
+            contentDescription = "$title $value"
+        }
+        card.addView(LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(newText(host, title, 9f, AppColors.muted, AppFont.sans), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(newText(host, "⌄", 9f, AppColors.faint, AppFont.sans))
+        })
+        card.addView(newText(host, value, 16f, AppColors.ink, AppFont.sansMedium).apply {
+            setPadding(0, host.dp(4), 0, 0)
+            includeFontPadding = false
+        })
+        card.addView(newText(host, detail, 8.5f, AppColors.faint, AppFont.sans).apply {
+            setPadding(0, host.dp(3), 0, 0)
+        })
+        return card
+    }
+
+    private fun relativeDay(day: Long): String {
+        return when (LocalDate.now().toEpochDay() - day) {
+            0L -> "今天"
+            1L -> "昨天"
+            2L -> "前天"
+            else -> ""
+        }
     }
 
     private fun ledgerSummaryCard(label: String, expense: Long, income: Long, count: Int): View {
@@ -1496,7 +1610,8 @@ class RecordsView(
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(host.dp(16), host.dp(11), host.dp(16), host.dp(3))
             }
-            head.addView(newText(host, epochDate(day, "M月d日 · EEEE"), 10f, AppColors.muted, AppFont.sans),
+            val relative = relativeDay(day)
+            head.addView(newText(host, epochDate(day, "M月d日 · EEEE") + if (relative.isEmpty()) "" else " · $relative", 10f, AppColors.muted, AppFont.sans),
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             val dayText = when {
                 dayExpense > 0 && dayIncome > 0 -> "支出 ${formatMoney(dayExpense)} · 收入 ${formatMoney(dayIncome)}"

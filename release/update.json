@@ -1,8 +1,8 @@
 {
-  "versionCode": 29,
-  "versionName": "2.20.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.20.0.apk",
-  "sha256": "e8ab649cf0d4fe562164ab9822098940bd41985712ed22653ed5745acbfa82be",
-  "notes": "• 移除实况照片功能\n• 保留普通照片、GIF/WebP 动图\n• 保留纪念日与日记音乐播放\n• 保留公历/农历选择与农历倒数",
-  "publishedAt": "2026-11-07"
+  "versionCode": 31,
+  "versionName": "2.22.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.22.0.apk",
+  "sha256": "f7ecc43667dff35f1dc7f240b4cb8348ad65b7906320e60142787e1b07223856",
+  "notes": "• 全宽悬浮底部导航\n• 记账贷款/还贷与统计卡\n• 今天/昨天/前天日期\n• 区县天气与 MET Norway\n• 保留照片、动图、音乐、农历",
+  "publishedAt": "2026-11-09"
 }

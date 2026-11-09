@@ -405,7 +405,7 @@ class HomeView(
             gravity = Gravity.BOTTOM
             leftMargin = host.contentMargin()
             rightMargin = host.contentMargin()
-            bottomMargin = host.dp(22)
+            bottomMargin = host.dp(104)
         })
         return wrapper
     }
@@ -421,7 +421,7 @@ class HomeView(
         layer.addView(buildFab(), FrameLayout.LayoutParams(host.dp(58), host.dp(58)).apply {
             gravity = Gravity.BOTTOM or Gravity.END
             rightMargin = host.contentMargin()
-            bottomMargin = host.dp(22)
+            bottomMargin = host.dp(104)
         })
         return layer
     }

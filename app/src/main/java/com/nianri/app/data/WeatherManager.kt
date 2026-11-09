@@ -1,14 +1,17 @@
 package com.nianri.app.data
 
 import android.content.Context
+import android.location.Geocoder
 import android.os.Handler
 import android.os.Looper
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.Locale
 import kotlin.math.roundToInt
 
 data class WeatherNow(
@@ -101,8 +104,8 @@ object WeatherStore {
 }
 
 /**
- * 用 Open-Meteo 的公开接口获取天气，不需要 API key。
- * 城市由用户手动设置，不申请定位权限；只有打开工作台或手动刷新时才联网。
+ * 地点搜索优先使用 Android Geocoder，失败时回退到 OpenStreetMap Nominatim；
+ * 天气改用 MET Norway Locationforecast 2.0，不需要 API key。
  */
 object WeatherManager {
     private const val CACHE_MINUTES = 30L
@@ -118,6 +121,12 @@ object WeatherManager {
 
     fun city(context: Context): String = WeatherStore.city(context)
 
+    private data class Place(
+        val name: String,
+        val latitude: Double,
+        val longitude: Double,
+    )
+
     fun configureCity(
         context: Context,
         query: String,
@@ -126,33 +135,23 @@ object WeatherManager {
         val app = context.applicationContext
         val name = query.trim()
         if (name.isBlank()) {
-            callback(false, "请输入城市名")
+            callback(false, "请输入区 / 县 / 城市")
             return
         }
         executor.execute {
             try {
-                val geoUrl = "https://geocoding-api.open-meteo.com/v1/search" +
-                    "?name=${URLEncoder.encode(name, "UTF-8")}&count=1&language=zh&format=json"
-                val geo = readJson(geoUrl).optJSONArray("results")
-                val first = if (geo != null && geo.length() > 0) geo.optJSONObject(0) else null
-                if (first == null) {
-                    post { callback(false, "没有找到这个城市，换个名字试试") }
+                val place = findPlace(app, name)
+                if (place == null) {
+                    post { callback(false, "没有找到这个地点，试试「区名 + 城市」") }
                     return@execute
                 }
-                val display = first.optString("name", name).ifBlank { name }
-                val latitude = first.optDouble("latitude", Double.NaN)
-                val longitude = first.optDouble("longitude", Double.NaN)
-                if (latitude.isNaN() || longitude.isNaN()) {
-                    post { callback(false, "这个城市暂时没有天气数据") }
-                    return@execute
-                }
-                WeatherStore.saveCity(app, display, latitude, longitude)
-                val weather = fetch(app, display, latitude, longitude)
+                WeatherStore.saveCity(app, place.name, place.latitude, place.longitude)
+                val weather = fetch(app, place.name, place.latitude, place.longitude)
                 if (weather != null) {
                     WeatherStore.saveWeather(app, weather)
-                    post { callback(true, "天气城市已设为 $display") }
+                    post { callback(true, "天气地点已设为 ${place.name}") }
                 } else {
-                    post { callback(true, "城市已设为 $display，天气稍后再试") }
+                    post { callback(true, "地点已设为 ${place.name}，天气稍后再试") }
                 }
             } catch (_: Exception) {
                 post { callback(false, "暂时连不上天气服务，请稍后再试") }
@@ -166,7 +165,7 @@ object WeatherManager {
         val lat = WeatherStore.latitude(app)
         val lon = WeatherStore.longitude(app)
         if (city.isBlank() || lat == null || lon == null) {
-            callback(null, "先设置一个城市")
+            callback(null, "先设置一个天气地点")
             return
         }
         executor.execute {
@@ -184,33 +183,132 @@ object WeatherManager {
         }
     }
 
+    private fun findPlace(context: Context, query: String): Place? {
+        geocodeAndroid(context, query)?.let { return it }
+        return geocodeNominatim(context, query)
+    }
+
+    private fun geocodeAndroid(context: Context, query: String): Place? {
+        if (!Geocoder.isPresent()) return null
+        return try {
+            val geocoder = Geocoder(context, Locale.CHINA)
+            val addresses = geocoder.getFromLocationName(query, 8).orEmpty()
+            addresses.firstNotNullOfOrNull { address ->
+                val latitude = address.latitude
+                val longitude = address.longitude
+                if (latitude.isNaN() || longitude.isNaN()) return@firstNotNullOfOrNull null
+                val parts = listOfNotNull(
+                    address.featureName,
+                    address.locality,
+                    address.subAdminArea,
+                    address.adminArea,
+                ).map { it.trim() }.filter { it.isNotBlank() }.distinct()
+                val display = parts.joinToString(" · ").ifBlank { query }
+                Place(display, latitude, longitude)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun geocodeNominatim(context: Context, query: String): Place? {
+        return try {
+            val url = "https://nominatim.openstreetmap.org/search" +
+                "?q=${URLEncoder.encode("$query 中国", "UTF-8")}" +
+                "&format=json&limit=6&accept-language=zh-CN&countrycodes=cn"
+            val array = readJsonArray(url)
+            var best: Place? = null
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val lat = item.optString("lat").toDoubleOrNull() ?: continue
+                val lon = item.optString("lon").toDoubleOrNull() ?: continue
+                val display = item.optString("display_name")
+                    .split(",").map { it.trim() }.filter { it.isNotBlank() }
+                    .take(3).joinToString(" · ")
+                    .ifBlank { query }
+                best = Place(display, lat, lon)
+                break
+            }
+            best
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun fetch(context: Context, city: String, lat: Double, lon: Double): WeatherNow? {
-        val url = "https://api.open-meteo.com/v1/forecast" +
-            "?latitude=$lat&longitude=$lon" +
-            "&current=temperature_2m,weather_code" +
-            "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
-            "&timezone=auto&forecast_days=1"
+        val url = "https://api.met.no/weatherapi/locationforecast/2.0/compact" +
+            "?lat=$lat&lon=$lon"
         val root = readJson(url)
-        val current = root.optJSONObject("current") ?: return null
-        val daily = root.optJSONObject("daily")
-        val temp = current.optDouble("temperature_2m", Double.NaN)
+        val series = root.optJSONObject("properties")?.optJSONArray("timeseries") ?: return null
+        val first = series.optJSONObject(0) ?: return null
+        val data = first.optJSONObject("data") ?: return null
+        val instant = data.optJSONObject("instant")?.optJSONObject("details") ?: return null
+        val temp = instant.optDouble("air_temperature", Double.NaN)
         if (temp.isNaN()) return null
-        val code = current.optInt(
-            "weather_code",
-            daily?.optJSONArray("weather_code")?.optInt(0, -1) ?: -1,
-        )
-        val high = daily?.optJSONArray("temperature_2m_max")?.optDouble(0, temp) ?: temp
-        val low = daily?.optJSONArray("temperature_2m_min")?.optDouble(0, temp) ?: temp
+        val temps = (0 until minOf(series.length(), 24)).mapNotNull { index ->
+            series.optJSONObject(index)
+                ?.optJSONObject("data")
+                ?.optJSONObject("instant")
+                ?.optJSONObject("details")
+                ?.optDouble("air_temperature", Double.NaN)
+                ?.takeUnless { it.isNaN() }
+        }
+        val symbol = data.optJSONObject("next_1_hours")
+            ?.optJSONObject("summary")
+            ?.optString("symbol_code")
+            .orEmpty()
+            .ifBlank {
+                data.optJSONObject("next_6_hours")
+                    ?.optJSONObject("summary")
+                    ?.optString("symbol_code")
+                    .orEmpty()
+            }
+        val code = metCode(symbol)
         return WeatherNow(
             city = city,
             temperature = temp.roundToInt(),
-            high = high.roundToInt(),
-            low = low.roundToInt(),
+            high = (temps.maxOrNull() ?: temp).roundToInt(),
+            low = (temps.minOrNull() ?: temp).roundToInt(),
             code = code,
             summary = weatherSummary(code),
             tip = weatherTip(code, temp.roundToInt()),
             updatedAt = System.currentTimeMillis(),
         )
+    }
+
+    private fun metCode(symbol: String): Int {
+        val value = symbol.lowercase(Locale.US)
+        return when {
+            value.contains("thunder") -> 95
+            value.contains("heavysnow") -> 75
+            value.contains("lightsnow") -> 71
+            value.contains("snow") -> 73
+            value.contains("heavyrain") -> 65
+            value.contains("sleet") -> 66
+            value.contains("rain") -> 61
+            value.contains("drizzle") -> 51
+            value.contains("fog") -> 45
+            value.contains("partlycloudy") -> 2
+            value.contains("fair") -> 1
+            value.contains("cloudy") -> 3
+            value.contains("clear") -> 0
+            else -> 3
+        }
+    }
+
+    private fun readJsonArray(url: String): JSONArray {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 15_000
+            conn.setRequestProperty("User-Agent", "NianRi/2.21 (Android)")
+            conn.setRequestProperty("Accept", "application/json")
+            val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            return JSONArray(text)
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun readJson(url: String): JSONObject {
@@ -219,7 +317,7 @@ object WeatherManager {
             conn.requestMethod = "GET"
             conn.connectTimeout = 12_000
             conn.readTimeout = 12_000
-            conn.setRequestProperty("User-Agent", "NianRi/2.0 (Android)")
+            conn.setRequestProperty("User-Agent", "NianRi/2.21 (Android)")
             conn.setRequestProperty("Accept", "application/json")
             val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             return JSONObject(text)

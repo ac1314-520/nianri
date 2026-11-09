@@ -44,6 +44,8 @@ import com.nianri.app.ui.EditorView
 import com.nianri.app.ui.HomeView
 import com.nianri.app.ui.ProgressDialogHandle
 import com.nianri.app.ui.RecordsTab
+import com.nianri.app.ui.BottomNavView
+import com.nianri.app.ui.NavDestination
 import com.nianri.app.ui.RecordsView
 import com.nianri.app.ui.SettingsView
 import com.nianri.app.ui.WorkbenchView
@@ -74,6 +76,7 @@ class MainActivity : Activity() {
     private enum class Screen { HOME, WORKBENCH, RECORDS, DETAIL, EDITOR, SETTINGS }
 
     private lateinit var root: FrameLayout
+    private lateinit var bottomNav: BottomNavView
     private var currentScreenView: View? = null
     private var screen = Screen.HOME
     private var editorView: EditorView? = null
@@ -106,6 +109,23 @@ class MainActivity : Activity() {
         applyEdgeToEdge()
         applyLightSystemBars()
         applyInsets()
+        bottomNav = BottomNavView(this) { destination ->
+            when (destination) {
+                NavDestination.HOME -> showHome(false)
+                NavDestination.WORKBENCH -> openWorkbench()
+                NavDestination.RECORDS -> openRecords(RecordsTab.DIARY)
+                NavDestination.SETTINGS -> openSettings()
+            }
+        }
+        root.addView(bottomNav, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM,
+        ).apply {
+            leftMargin = dp(12)
+            rightMargin = dp(12)
+            bottomMargin = dp(10)
+        })
 
         ReminderEngine.ensureChannel(this)
         ReminderScheduler.ensureScheduled(this)
@@ -331,6 +351,26 @@ class MainActivity : Activity() {
         ))
         currentScreenView = view
         screen = next
+        val topLevel = next == Screen.HOME || next == Screen.WORKBENCH ||
+            next == Screen.RECORDS || next == Screen.SETTINGS
+        bottomNav.visibility = if (topLevel) View.VISIBLE else View.GONE
+        if (topLevel) {
+            bottomNav.select(
+                when (next) {
+                    Screen.HOME -> NavDestination.HOME
+                    Screen.WORKBENCH -> NavDestination.WORKBENCH
+                    Screen.RECORDS -> NavDestination.RECORDS
+                    else -> NavDestination.SETTINGS
+                },
+                animate = animated,
+            )
+        }
+        view.setPadding(
+            view.paddingLeft,
+            view.paddingTop,
+            view.paddingRight,
+            if (topLevel) dp(96) else 0,
+        )
         hideKeyboard()
         if (animated) {
             view.alpha = 0f
@@ -543,7 +583,7 @@ class MainActivity : Activity() {
         ).apply {
             leftMargin = dp(24)
             rightMargin = dp(24)
-            bottomMargin = dp(96)
+            bottomMargin = dp(116)
         }
         root.addView(container, lp)
         noticeView = container
@@ -712,10 +752,10 @@ class MainActivity : Activity() {
     fun showWeatherCityDialog() {
         showInputDialog(
             this,
-            "天气城市",
-            "天气使用 Open-Meteo 的公开数据，只要城市名，不需要定位权限。设置后只有打开工作台或手动刷新时才联网。",
+            "天气地点",
+            "先输入区 / 县 / 城市。地点使用系统 Geocoder 或 OpenStreetMap 搜索，天气使用 MET Norway，不需要 API Key 或定位权限。",
             WeatherStore.city(this),
-            "例如：北京",
+            "例如：天河区、浦东新区",
         ) { value ->
             val city = value.trim()
             if (city.isEmpty()) {

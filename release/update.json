@@ -1,8 +1,8 @@
 {
-  "versionCode": 32,
-  "versionName": "2.23.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.23.0.apk",
-  "sha256": "eddae994b5c7cdd1309958e7bebeb458148d2e850c955fd1bdd2796014ce38d2",
-  "notes": "• 全宽底部导航滑动指示器\n• 首页长按模糊/弹簧菜单\n• RecyclerView 跟手拖拽排序\n• 记账贷款/还贷与统计卡\n• 区县天气与 MET Norway",
+  "versionCode": 33,
+  "versionName": "2.24.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.24.0.apk",
+  "sha256": "e69f876c4291d442a9faf008cb1882a13441dc6f341a416cfb2951dc5e99dfb7",
+  "notes": "• 首页长按微缩/抬起/模糊/弹簧菜单\n• RecyclerView 跟手拖拽排序\n• 底部导航滑动弹簧\n• 使用当前位置获取天气\n• 记账贷款/还贷与相对日期",
   "publishedAt": "2026-11-09"
 }

@@ -183,6 +183,30 @@ object WeatherManager {
         }
     }
 
+    fun configureCoordinates(
+        context: Context,
+        city: String,
+        latitude: Double,
+        longitude: Double,
+        callback: (Boolean, String) -> Unit,
+    ) {
+        val app = context.applicationContext
+        executor.execute {
+            try {
+                WeatherStore.saveCity(app, city, latitude, longitude)
+                val weather = fetch(app, city, latitude, longitude)
+                if (weather != null) {
+                    WeatherStore.saveWeather(app, weather)
+                    post { callback(true, "天气地点已设为 $city") }
+                } else {
+                    post { callback(false, "已经定位到 $city，但天气暂时取不到") }
+                }
+            } catch (_: Exception) {
+                post { callback(false, "已经定位，但天气服务暂时连不上") }
+            }
+        }
+    }
+
     private fun findPlace(context: Context, query: String): Place? {
         geocodeAndroid(context, query)?.let { return it }
         return geocodeNominatim(context, query)

@@ -218,10 +218,14 @@ class WorkbenchView(
             })
         }
         weatherRow.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        weatherRow.addView(softAction(host, "定位") { host.useCurrentWeatherLocation() })
         weatherRow.addView(softAction(
             host,
             if (city.isBlank()) "设置" else "换城市",
-        ) { host.showWeatherCityDialog() })
+        ) { host.showWeatherCityDialog() }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { marginStart = host.dp(4) })
         card.addView(weatherRow, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,

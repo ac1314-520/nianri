@@ -15,6 +15,9 @@ import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.location.LocationManager
+import android.location.Geocoder
+import java.util.Locale
 import android.provider.MediaStore
 import android.provider.Settings
 import android.view.Gravity
@@ -736,6 +739,11 @@ class MainActivity : Activity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_LOCATION) {
+            val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+            if (granted) useCurrentWeatherLocation() else showNotice("定位权限未开启，可以手动搜索区县")
+            return
+        }
         if (requestCode != REQUEST_NOTIFICATION_PERMISSION) return
         notificationPermissionInFlight = false
         val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
@@ -757,6 +765,53 @@ class MainActivity : Activity() {
     fun openNotificationSettings() {
         refreshOnResume = true
         ReminderEngine.openNotificationSettings(this)
+    }
+
+    fun useCurrentWeatherLocation() {
+        val coarse = checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+        val fine = checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        if (coarse != PackageManager.PERMISSION_GRANTED && fine != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                arrayOf(
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                ),
+                REQUEST_LOCATION,
+            )
+            return
+        }
+        val manager = getSystemService(LOCATION_SERVICE) as? LocationManager
+        if (manager == null) {
+            showNotice("这台设备没有定位服务，可以手动搜索区县")
+            return
+        }
+        val location = listOf(
+            LocationManager.GPS_PROVIDER,
+            LocationManager.NETWORK_PROVIDER,
+            LocationManager.PASSIVE_PROVIDER,
+        ).firstNotNullOfOrNull { provider ->
+            runCatching { manager.getLastKnownLocation(provider) }.getOrNull()
+        }
+        if (location == null) {
+            showNotice("还没有拿到当前位置，请打开定位稍后再试，或手动搜索")
+            return
+        }
+        showNotice("正在按当前位置找天气…")
+        val geocoder = Geocoder(this, Locale.CHINA)
+        val name = runCatching {
+            geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                ?.firstOrNull()
+                ?.let { address ->
+                    listOfNotNull(address.locality, address.subLocality, address.adminArea)
+                        .map { it.trim() }.filter { it.isNotBlank() }.distinct()
+                        .joinToString(" · ")
+                }
+        }.getOrNull().orEmpty().ifBlank { "当前位置" }
+        WeatherManager.configureCoordinates(this, name, location.latitude, location.longitude) { ok, message ->
+            if (isFinishing || isDestroyed) return@configureCoordinates
+            showNotice(message)
+            if (ok) workbenchView?.refresh()
+        }
     }
 
     fun showWeatherCityDialog() {
@@ -1147,5 +1202,6 @@ class MainActivity : Activity() {
         private const val REQUEST_PHOTO = 4201
         private const val REQUEST_NOTIFICATION_PERMISSION = 4202
         private const val REQUEST_AUDIO = 4203
+        private const val REQUEST_LOCATION = 4205
     }
 }

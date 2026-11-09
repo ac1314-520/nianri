@@ -1,8 +1,8 @@
 {
-  "versionCode": 34,
-  "versionName": "2.25.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.25.0.apk",
-  "sha256": "d568febf872e1b29db04daaf781059042a29c0d9be26987998eca5ba1ab583a5",
-  "notes": "• 长按直接拖拽排序\n• 首页加号移到标题栏\n• 全宽底部导航滑动指示器\n• 当前位置天气",
+  "versionCode": 35,
+  "versionName": "2.26.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.26.0.apk",
+  "sha256": "16478f0598ac6ed7be54931a3ffd6273994d38b834962c45aab1668bf9401d54",
+  "notes": "• hero 与列表统一拖拽排序\n• 拖到第一张自动成为 hero\n• 移除右下角悬浮加号\n• 底部导航滑动指示器",
   "publishedAt": "2026-11-09"
 }

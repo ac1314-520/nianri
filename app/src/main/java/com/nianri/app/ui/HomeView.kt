@@ -36,10 +36,10 @@ class HomeView(
     private val sorted = events.sortedForHome(today)
     private val hero = sorted.heroForHome(today)
     private val rest = sorted.filter { it.id != hero?.id }
-    private var listBox: LinearLayout? = null
-    private val rowOrder = mutableListOf<String>()
+    private val eventOrder = sorted.map { it.id }.toMutableList()
     private var draggingId: String? = null
     private var draggingView: View? = null
+    private var orderChanged = false
 
     init {
         background = ColorDrawable(AppColors.paper)
@@ -82,6 +82,8 @@ class HomeView(
                 setCornerRadiusDp(28f)
                 setContent(heroCard, fillHeight = true)
                 onDelete = { host.deleteEventBySwipe(hero) }
+                tag = hero.id
+                setOnDragListener { target, dragEvent -> handleDragTarget(target, dragEvent) }
             }
             column.addView(heroSwipe, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -119,16 +121,11 @@ class HomeView(
         }
 
         column.addView(buildQuote())
-        val actionView = if (hero == null) buildAddBar() else buildFabLayer()
-        addView(actionView, if (hero == null) {
-            LayoutParams(LayoutParams.MATCH_PARENT, host.dp(118)).apply {
+        if (hero == null) {
+            addView(buildAddBar(), LayoutParams(LayoutParams.MATCH_PARENT, host.dp(118)).apply {
                 gravity = Gravity.BOTTOM
-            }
-        } else {
-            LayoutParams(LayoutParams.MATCH_PARENT, host.dp(126)).apply {
-                gravity = Gravity.BOTTOM
-            }
-        })
+            })
+        }
     }
 
     private fun buildHeader(): View {
@@ -366,6 +363,11 @@ class HomeView(
             it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             host.openDetail(event)
         }
+        card.setOnLongClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            startEventDrag(event, card)
+            true
+        }
         addPressScale(card, 0.985f)
 
         if (display.big.all { ch -> ch.isDigit() }) {
@@ -377,48 +379,59 @@ class HomeView(
         return card
     }
 
-    private fun startRowDrag(event: Anniversary, card: View) {
-        if (listBox == null) return
+    private fun handleDragTarget(target: View, event: DragEvent): Boolean {
+        when (event.action) {
+            DragEvent.ACTION_DRAG_STARTED -> return true
+            DragEvent.ACTION_DRAG_ENTERED -> {
+                val targetId = target.tag as? String
+                val fromId = draggingId
+                if (targetId != null && fromId != null && targetId != fromId) {
+                    moveEvent(fromId, targetId)
+                    target.animate().scaleX(1.012f).scaleY(1.012f).setDuration(120L).start()
+                }
+                return true
+            }
+            DragEvent.ACTION_DROP -> {
+                finishEventDrag()
+                return true
+            }
+            DragEvent.ACTION_DRAG_ENDED -> {
+                if (draggingId != null) finishEventDrag()
+                return true
+            }
+            else -> return true
+        }
+    }
+
+    private fun startEventDrag(event: Anniversary, card: View) {
         draggingId = event.id
         draggingView = card
-        card.animate().scaleX(1.03f).scaleY(1.03f)
-            .translationZ(host.dpf(18f)).setDuration(130L).start()
+        orderChanged = false
+        card.animate().scaleX(1.035f).scaleY(1.035f)
+            .translationZ(host.dpf(20f)).setDuration(130L).start()
         val shadow = View.DragShadowBuilder(card)
         card.startDragAndDrop(ClipData.newPlainText("nianri-order", event.id), shadow, null, 0)
     }
 
-    private fun moveRow(fromId: String, targetId: String) {
-        val box = listBox ?: return
-        val from = rowOrder.indexOf(fromId)
-        val to = rowOrder.indexOf(targetId)
+    private fun moveEvent(fromId: String, targetId: String) {
+        val from = eventOrder.indexOf(fromId)
+        val to = eventOrder.indexOf(targetId)
         if (from < 0 || to < 0 || from == to) return
-        rowOrder.removeAt(from)
-        rowOrder.add(to, fromId)
-        val view = (0 until box.childCount).map { box.getChildAt(it) }
-            .firstOrNull { it.tag == fromId } ?: return
-        val targetView = (0 until box.childCount).map { box.getChildAt(it) }
-            .firstOrNull { it.tag == targetId } ?: return
-        val fromIndex = box.indexOfChild(view)
-        val toIndex = box.indexOfChild(targetView)
-        val params = view.layoutParams
-        box.removeViewAt(fromIndex)
-        box.addView(view, toIndex, params)
-        view.alpha = 0.96f
-        view.animate().alpha(1f).setDuration(180L).start()
-        box.requestLayout()
+        eventOrder.removeAt(from)
+        eventOrder.add(to, fromId)
+        orderChanged = true
     }
 
-    private fun finishRowDrag() {
+    private fun finishEventDrag() {
         draggingView?.animate()?.scaleX(1f)?.scaleY(1f)?.translationZ(0f)?.setDuration(190L)?.start()
         draggingView?.alpha = 1f
-        val ids = mutableListOf<String>()
-        hero?.id?.let { ids.add(it) }
-        ids.addAll(rowOrder)
-        if (ids.size >= 2 && draggingId != null) {
-            com.nianri.app.data.AnniversaryStore.reorder(host, ids)
+        if (orderChanged && eventOrder.size >= 2) {
+            com.nianri.app.data.AnniversaryStore.reorder(host, eventOrder)
+            host.showHome(false)
         }
         draggingId = null
         draggingView = null
+        orderChanged = false
     }
 
     private fun buildAddBar(): View {
@@ -559,8 +572,6 @@ class HomeView(
         val box = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
         }
-        listBox = box
-        rowOrder.clear()
         var pastLabelAdded = false
         items.forEachIndexed { index, event ->
             val display = event.display(today)
@@ -581,29 +592,9 @@ class HomeView(
                 onDelete = { host.deleteEventBySwipe(event) }
                 tag = event.id
                 setOnDragListener { target, dragEvent ->
-                    when (dragEvent.action) {
-                        DragEvent.ACTION_DRAG_STARTED -> true
-                        DragEvent.ACTION_DRAG_ENTERED -> {
-                            val targetId = target.tag as? String
-                            val fromId = draggingId
-                            if (targetId != null && fromId != null && targetId != fromId) {
-                                moveRow(fromId, targetId)
-                            }
-                            true
-                        }
-                        DragEvent.ACTION_DROP -> {
-                            finishRowDrag()
-                            true
-                        }
-                        DragEvent.ACTION_DRAG_ENDED -> {
-                            if (!dragEvent.result) finishRowDrag()
-                            true
-                        }
-                        else -> true
-                    }
+                    handleDragTarget(target, dragEvent)
                 }
             }
-            rowOrder += event.id
             box.addView(swipe, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -755,7 +746,7 @@ class HomeView(
         }
         row.setOnLongClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-            startRowDrag(event, row)
+            startEventDrag(event, row)
             true
         }
         addPressScale(row, 0.988f)

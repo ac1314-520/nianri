@@ -8,6 +8,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -38,6 +39,8 @@ class BottomNavView(
 
     private val items = mutableListOf<Item>()
     private var selected: NavDestination = NavDestination.HOME
+    private lateinit var row: LinearLayout
+    private lateinit var indicator: View
 
     init {
         background = roundedDrawable(host, 0xF4FFFDF9.toInt(), 30f, 0.9f, AppColors.line)
@@ -45,7 +48,12 @@ class BottomNavView(
         clipToOutline = false
         setPadding(host.dp(6), host.dp(6), host.dp(6), host.dp(6))
 
-        val row = LinearLayout(host).apply {
+        val track = FrameLayout(host)
+        indicator = View(host).apply {
+            background = roundedDrawable(host, AppColors.cinnabarSoft, 24f, 0.8f, 0x33CC785C)
+        }
+        track.addView(indicator, LayoutParams(0, host.dp(62)))
+        row = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, host.dp(62))
@@ -56,7 +64,8 @@ class BottomNavView(
         addItem(row, NavDestination.RECORDS, "记录", R.drawable.ic_nav_book)
         addItem(row, NavDestination.SETTINGS, "设置", R.drawable.ic_nav_settings)
 
-        addView(row, LayoutParams(LayoutParams.MATCH_PARENT, host.dp(62)))
+        track.addView(row, LayoutParams(LayoutParams.MATCH_PARENT, host.dp(62)))
+        addView(track, LayoutParams(LayoutParams.MATCH_PARENT, host.dp(62)))
         select(NavDestination.HOME, animate = false)
     }
 
@@ -98,11 +107,6 @@ class BottomNavView(
         selected = destination
         items.forEach { item ->
             val active = item.destination == destination
-            item.view.background = if (active) {
-                roundedDrawable(host, AppColors.cinnabarSoft, 24f, 0.8f, 0x33CC785C)
-            } else {
-                null
-            }
             item.image.setColorFilter(if (active) AppColors.cinnabarDeep else AppColors.muted)
             item.image.layoutParams = (item.image.layoutParams as LinearLayout.LayoutParams).apply {
                 width = host.dp(if (active) 21 else 20)
@@ -118,7 +122,26 @@ class BottomNavView(
             } else {
                 item.text.visibility = View.GONE
             }
-            item.view.animate().scaleX(if (active) 1f else 1f).scaleY(1f).setDuration(160L).start()
+            item.view.animate().scaleX(1f).scaleY(1f).setDuration(160L).start()
+        }
+
+        val selectedItem = items.firstOrNull { it.destination == destination } ?: return
+        row.post {
+            val lp = indicator.layoutParams
+            if (lp.width != selectedItem.view.width) {
+                lp.width = selectedItem.view.width
+                indicator.layoutParams = lp
+            }
+            if (animate) {
+                indicator.animate()
+                    .x(selectedItem.view.left.toFloat())
+                    .setDuration(300L)
+                    .setInterpolator(OvershootInterpolator(0.75f))
+                    .start()
+            } else {
+                indicator.x = selectedItem.view.left.toFloat()
+            }
+            indicator.visibility = View.VISIBLE
         }
     }
 }

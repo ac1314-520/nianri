@@ -10,6 +10,8 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -60,6 +62,7 @@ import com.nianri.app.ui.showInfoDialog
 import com.nianri.app.ui.showInputDialog
 import com.nianri.app.ui.showInstallReadyDialog
 import com.nianri.app.ui.showSortDialog
+import com.nianri.app.ui.showSpringSortDialog
 import com.nianri.app.ui.showUpdateAvailableDialog
 import com.nianri.app.update.InstallResult
 import com.nianri.app.update.UpdateCheckResult
@@ -266,6 +269,13 @@ class MainActivity : Activity() {
         swapScreen(home, Screen.HOME, animated)
     }
 
+    fun setScreenBlur(enabled: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        currentScreenView?.setRenderEffect(
+            if (enabled) RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP) else null,
+        )
+    }
+
     fun openSortDialog() {
         if (screen != Screen.HOME) return
         val ordered = AnniversaryStore.all(this).sortedForHome()
@@ -273,7 +283,7 @@ class MainActivity : Activity() {
             showNotice("再多写一个日子，就可以调整顺序了")
             return
         }
-        showSortDialog(this, ordered) { ids ->
+        showSpringSortDialog(this, ordered) { ids ->
             AnniversaryStore.reorder(this, ids)
             showHome(false)
             showNotice("首页顺序已保存")

@@ -4,8 +4,8 @@
 
 没有广告，没有账号，没有统计 SDK。照片、纪念日和工作台记录默认只保存在这台手机里；只有你主动检查更新（或开启自动检查）或刷新天气时才会访问网络。
 
-**安装包**：[`release/NianRi-Android-2.22.0.apk`](release/NianRi-Android-2.22.0.apk)  
-**SHA-256**：[`release/SHA256-2.22.0.txt`](release/SHA256-2.22.0.txt)  
+**安装包**：[`release/NianRi-Android-2.23.0.apk`](release/NianRi-Android-2.23.0.apk)  
+**SHA-256**：[`release/SHA256-2.23.0.txt`](release/SHA256-2.23.0.txt)  
 **安装说明**：[`release/安装说明.txt`](release/安装说明.txt)  
 **GitHub**：[`ac1314-520/nianri`](https://github.com/ac1314-520/nianri)
 
@@ -88,7 +88,7 @@
 
 ## 安装
 
-1. 把 `release/NianRi-Android-2.22.0.apk` 传到手机。
+1. 把 `release/NianRi-Android-2.23.0.apk` 传到手机。
 2. 点开安装；系统询问时允许「安装未知应用」。这是侧载应用的正常提示。
 3. 第一次保存带提醒的纪念日时，系统会询问通知权限，请选择允许。
 4. 打开「设置 → 提醒」，检查通知、精确提醒和电池优化状态。
@@ -145,13 +145,13 @@ APK 只使用以下权限：
 
 ### 默认更新清单
 
-念日 2.22.0 已内置下面地址：
+念日 2.23.0 已内置下面地址：
 
 ```text
 https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/update.json
 ```
 
-当前清单版本是 2.22.0；已经是 2.22.0 会提示已是最新。想换成自己的清单，进入「设置 → 在线更新 → 更新源」替换即可。
+当前清单版本是 2.23.0；已经是 2.23.0 会提示已是最新。想换成自己的清单，进入「设置 → 在线更新 → 更新源」替换即可。
 
 ### 1. 清单格式
 
@@ -264,7 +264,7 @@ kotlin.incremental=false
 3. 用 `tools/make_update_manifest.py` 生成带有新 SHA-256 的 `update.json`；
 4. 上传新 APK 和清单。
 
-> 公开仓库不包含发布签名密钥，`keystore/` 只保留在维护者本地。仓库中的 `release/NianRi-Android-2.22.0.apk` 是已签名安装包；如果你从源码自行构建，需要使用自己的签名配置，不能覆盖官方签名的安装。
+> 公开仓库不包含发布签名密钥，`keystore/` 只保留在维护者本地。仓库中的 `release/NianRi-Android-2.23.0.apk` 是已签名安装包；如果你从源码自行构建，需要使用自己的签名配置，不能覆盖官方签名的安装。
 
 ## 数据与备份
 
@@ -333,6 +333,15 @@ nianri/
 - 卡片大数字与左滑手势的设计参考了开源项目 [TickCount](https://github.com/ZZPBY/tickcount) 和 [Countdown-App](https://github.com/LaoYinBai/Countdown-App)；念日的界面、工作台和滑动组件为自绘实现
 
 ## 版本记录
+
+### 2.23.0（2026-11-09）
+
+- 底部导航加入滑动选中指示器和更柔和的弹簧切换
+- 首页长按卡片：先微缩再抬起，背景模糊/变暗，底部弹簧菜单
+- 排序入口改为 RecyclerView 跟手拖拽，拖动行放大、抬起、加投影
+- 移除首页顶部原工作台入口
+- 记账新增贷款/还贷、预算/有账/待还统计卡和今天/昨天/前天
+- 天气地点使用区县搜索，天气改用 MET Norway
 
 ### 2.22.0（2026-11-09）
 

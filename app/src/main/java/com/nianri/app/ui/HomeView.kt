@@ -146,20 +146,6 @@ class HomeView(
             ).apply { marginStart = host.dp(11) })
             addView(iconButton(
                 host,
-                R.drawable.ic_workbench,
-                "打开工作台",
-                42,
-                19,
-                AppColors.inkSoft,
-                Color.TRANSPARENT,
-                AppColors.line,
-            ).apply {
-                setOnClickListener { host.openWorkbench() }
-            }, LinearLayout.LayoutParams(host.dp(42), host.dp(42)).apply {
-                marginEnd = host.dp(8)
-            })
-            addView(iconButton(
-                host,
                 R.drawable.ic_settings,
                 "打开设置",
                 42,
@@ -362,7 +348,7 @@ class HomeView(
         }
         card.setOnLongClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-            host.openSortDialog()
+            showCardMenu(event, card)
             true
         }
         addPressScale(card, 0.985f)
@@ -374,6 +360,75 @@ class HomeView(
             }, 220)
         }
         return card
+    }
+
+    private fun showCardMenu(event: Anniversary, card: View) {
+        card.animate().scaleX(0.96f).scaleY(0.96f).setDuration(80L).withEndAction {
+            card.animate().scaleX(1.04f).scaleY(1.04f)
+                .translationZ(host.dpf(16f))
+                .setDuration(180L)
+                .start()
+            host.setScreenBlur(true)
+            val dialog = android.app.Dialog(host, android.R.style.Theme_Translucent_NoTitleBar).apply {
+                requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+                window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                window?.setGravity(Gravity.BOTTOM)
+                window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                window?.setDimAmount(0.22f)
+            }
+            val wrapper = FrameLayout(host).apply {
+                setPadding(host.dp(14), 0, host.dp(14), host.dp(16))
+            }
+            val menu = LinearLayout(host).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(host.dp(20), host.dp(18), host.dp(20), host.dp(18))
+                background = roundedDrawableWithRadii(
+                    host,
+                    AppColors.cream,
+                    floatArrayOf(28f, 28f, 28f, 28f, 0f, 0f, 0f, 0f),
+                )
+                elevation = host.dpf(18f)
+            }
+            menu.addView(newText(host, event.title, 21f, AppColors.ink, AppFont.serif).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+            menu.addView(newText(host, event.dateLine(), 10.5f, AppColors.muted, AppFont.sans).apply {
+                setPadding(0, host.dp(5), 0, host.dp(12))
+            })
+            fun action(label: String, color: Int = AppColors.inkSoft, onClick: () -> Unit) {
+                menu.addView(newText(host, label, 15f, color, AppFont.sansMedium).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    isClickable = true
+                    isFocusable = true
+                    setPadding(host.dp(4), 0, host.dp(4), 0)
+                    setOnClickListener {
+                        dialog.dismiss()
+                        onClick()
+                    }
+                }, LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    host.dp(48),
+                ))
+            }
+            action("编辑这一天") { host.openEditor(event) }
+            action("调整顺序") { host.openSortDialog() }
+            action("取消", AppColors.muted) {}
+            wrapper.addView(menu, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+            menu.translationY = host.dpf(320f)
+            dialog.setContentView(wrapper)
+            dialog.setOnDismissListener {
+                host.setScreenBlur(false)
+                card.animate().scaleX(1f).scaleY(1f).translationZ(0f).setDuration(180L).start()
+            }
+            dialog.show()
+            menu.animate().translationY(0f).setDuration(360L)
+                .setInterpolator(android.view.animation.OvershootInterpolator(0.72f)).start()
+        }.start()
     }
 
     private fun buildAddBar(): View {
@@ -684,7 +739,7 @@ class HomeView(
         }
         row.setOnLongClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-            host.openSortDialog()
+            showCardMenu(event, row)
             true
         }
         addPressScale(row, 0.988f)

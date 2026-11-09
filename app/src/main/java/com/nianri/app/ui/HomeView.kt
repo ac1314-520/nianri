@@ -2,6 +2,8 @@ package com.nianri.app.ui
 
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.content.ClipData
+import android.view.DragEvent
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
@@ -34,6 +36,10 @@ class HomeView(
     private val sorted = events.sortedForHome(today)
     private val hero = sorted.heroForHome(today)
     private val rest = sorted.filter { it.id != hero?.id }
+    private var listBox: LinearLayout? = null
+    private val rowOrder = mutableListOf<String>()
+    private var draggingId: String? = null
+    private var draggingView: View? = null
 
     init {
         background = ColorDrawable(AppColors.paper)
@@ -50,7 +56,7 @@ class HomeView(
                 host.contentMargin(),
                 0,
                 host.contentMargin(),
-                if (hero == null) host.dp(136) else host.dp(108),
+                if (hero == null) host.dp(132) else host.dp(34),
             )
         }
         scroll.addView(column, ViewGroup.LayoutParams(
@@ -144,6 +150,20 @@ class HomeView(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f,
             ).apply { marginStart = host.dp(11) })
+            addView(iconButton(
+                host,
+                R.drawable.ic_add,
+                "写下一个日子",
+                42,
+                19,
+                AppColors.cinnabar,
+                Color.TRANSPARENT,
+                AppColors.line,
+            ).apply {
+                setOnClickListener { host.openEditor(null) }
+            }, LinearLayout.LayoutParams(host.dp(42), host.dp(42)).apply {
+                marginEnd = host.dp(6)
+            })
             addView(iconButton(
                 host,
                 R.drawable.ic_settings,
@@ -346,11 +366,6 @@ class HomeView(
             it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             host.openDetail(event)
         }
-        card.setOnLongClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-            showCardMenu(event, card)
-            true
-        }
         addPressScale(card, 0.985f)
 
         if (display.big.all { ch -> ch.isDigit() }) {
@@ -362,73 +377,48 @@ class HomeView(
         return card
     }
 
-    private fun showCardMenu(event: Anniversary, card: View) {
-        card.animate().scaleX(0.96f).scaleY(0.96f).setDuration(80L).withEndAction {
-            card.animate().scaleX(1.04f).scaleY(1.04f)
-                .translationZ(host.dpf(16f))
-                .setDuration(180L)
-                .start()
-            host.setScreenBlur(true)
-            val dialog = android.app.Dialog(host, android.R.style.Theme_Translucent_NoTitleBar).apply {
-                requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
-                window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                window?.setGravity(Gravity.BOTTOM)
-                window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-                window?.setDimAmount(0.22f)
-            }
-            val wrapper = FrameLayout(host).apply {
-                setPadding(host.dp(14), 0, host.dp(14), host.dp(16))
-            }
-            val menu = LinearLayout(host).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(host.dp(20), host.dp(18), host.dp(20), host.dp(18))
-                background = roundedDrawableWithRadii(
-                    host,
-                    AppColors.cream,
-                    floatArrayOf(28f, 28f, 28f, 28f, 0f, 0f, 0f, 0f),
-                )
-                elevation = host.dpf(18f)
-            }
-            menu.addView(newText(host, event.title, 21f, AppColors.ink, AppFont.serif).apply {
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            })
-            menu.addView(newText(host, event.dateLine(), 10.5f, AppColors.muted, AppFont.sans).apply {
-                setPadding(0, host.dp(5), 0, host.dp(12))
-            })
-            fun action(label: String, color: Int = AppColors.inkSoft, onClick: () -> Unit) {
-                menu.addView(newText(host, label, 15f, color, AppFont.sansMedium).apply {
-                    gravity = Gravity.CENTER_VERTICAL
-                    isClickable = true
-                    isFocusable = true
-                    setPadding(host.dp(4), 0, host.dp(4), 0)
-                    setOnClickListener {
-                        dialog.dismiss()
-                        onClick()
-                    }
-                }, LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    host.dp(48),
-                ))
-            }
-            action("编辑这一天") { host.openEditor(event) }
-            action("调整顺序") { host.openSortDialog() }
-            action("取消", AppColors.muted) {}
-            wrapper.addView(menu, FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ))
-            menu.translationY = host.dpf(320f)
-            dialog.setContentView(wrapper)
-            dialog.setOnDismissListener {
-                host.setScreenBlur(false)
-                card.animate().scaleX(1f).scaleY(1f).translationZ(0f).setDuration(180L).start()
-            }
-            dialog.show()
-            menu.animate().translationY(0f).setDuration(360L)
-                .setInterpolator(android.view.animation.OvershootInterpolator(0.72f)).start()
-        }.start()
+    private fun startRowDrag(event: Anniversary, card: View) {
+        if (listBox == null) return
+        draggingId = event.id
+        draggingView = card
+        card.animate().scaleX(1.03f).scaleY(1.03f)
+            .translationZ(host.dpf(18f)).setDuration(130L).start()
+        val shadow = View.DragShadowBuilder(card)
+        card.startDragAndDrop(ClipData.newPlainText("nianri-order", event.id), shadow, null, 0)
+    }
+
+    private fun moveRow(fromId: String, targetId: String) {
+        val box = listBox ?: return
+        val from = rowOrder.indexOf(fromId)
+        val to = rowOrder.indexOf(targetId)
+        if (from < 0 || to < 0 || from == to) return
+        rowOrder.removeAt(from)
+        rowOrder.add(to, fromId)
+        val view = (0 until box.childCount).map { box.getChildAt(it) }
+            .firstOrNull { it.tag == fromId } ?: return
+        val targetView = (0 until box.childCount).map { box.getChildAt(it) }
+            .firstOrNull { it.tag == targetId } ?: return
+        val fromIndex = box.indexOfChild(view)
+        val toIndex = box.indexOfChild(targetView)
+        val params = view.layoutParams
+        box.removeViewAt(fromIndex)
+        box.addView(view, toIndex, params)
+        view.alpha = 0.96f
+        view.animate().alpha(1f).setDuration(180L).start()
+        box.requestLayout()
+    }
+
+    private fun finishRowDrag() {
+        draggingView?.animate()?.scaleX(1f)?.scaleY(1f)?.translationZ(0f)?.setDuration(190L)?.start()
+        draggingView?.alpha = 1f
+        val ids = mutableListOf<String>()
+        hero?.id?.let { ids.add(it) }
+        ids.addAll(rowOrder)
+        if (ids.size >= 2 && draggingId != null) {
+            com.nianri.app.data.AnniversaryStore.reorder(host, ids)
+        }
+        draggingId = null
+        draggingView = null
     }
 
     private fun buildAddBar(): View {
@@ -569,6 +559,8 @@ class HomeView(
         val box = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
         }
+        listBox = box
+        rowOrder.clear()
         var pastLabelAdded = false
         items.forEachIndexed { index, event ->
             val display = event.display(today)
@@ -587,7 +579,31 @@ class HomeView(
                 setCornerRadiusDp(20f)
                 setContent(content, fillHeight = false)
                 onDelete = { host.deleteEventBySwipe(event) }
+                tag = event.id
+                setOnDragListener { target, dragEvent ->
+                    when (dragEvent.action) {
+                        DragEvent.ACTION_DRAG_STARTED -> true
+                        DragEvent.ACTION_DRAG_ENTERED -> {
+                            val targetId = target.tag as? String
+                            val fromId = draggingId
+                            if (targetId != null && fromId != null && targetId != fromId) {
+                                moveRow(fromId, targetId)
+                            }
+                            true
+                        }
+                        DragEvent.ACTION_DROP -> {
+                            finishRowDrag()
+                            true
+                        }
+                        DragEvent.ACTION_DRAG_ENDED -> {
+                            if (!dragEvent.result) finishRowDrag()
+                            true
+                        }
+                        else -> true
+                    }
+                }
             }
+            rowOrder += event.id
             box.addView(swipe, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -739,7 +755,7 @@ class HomeView(
         }
         row.setOnLongClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-            showCardMenu(event, row)
+            startRowDrag(event, row)
             true
         }
         addPressScale(row, 0.988f)

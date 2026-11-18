@@ -133,7 +133,7 @@ class EditorView(
 
         column.addView(buildPhotoPicker(), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            host.dp(220),
+            host.dp(280),
         ).apply { topMargin = host.dp(8) })
         column.addView(sectionTitle("名字", "只属于这一天的名字"), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,

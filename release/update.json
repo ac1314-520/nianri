@@ -1,8 +1,8 @@
 {
-  "versionCode": 38,
-  "versionName": "2.28.1",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.28.1.apk",
-  "sha256": "1174f4363702ba0de2a3c3cc2f62ae9b2d1bfc042bed69ce89d4ff55767feedd",
-  "notes": "• 修复封面焦点保存后回到默认位置\n• 裁剪确认直接保存当前焦点\n• 修复 iOS 保存后编辑照片空白\n• 保留记账增强与封面裁剪",
+  "versionCode": 40,
+  "versionName": "2.28.3",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.28.3.apk",
+  "sha256": "e349c3807d451261476e713ba25fd243b055974e2c02dbab329713ec26e04f03",
+  "notes": "• 编辑页预览与裁剪框比例对齐\n• 调整封面后编辑页预览不再错位\n• 焦点保存与首页封面保持\n• 保留记账增强",
   "publishedAt": "2026-11-18"
 }

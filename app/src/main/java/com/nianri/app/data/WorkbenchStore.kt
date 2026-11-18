@@ -45,6 +45,9 @@ data class LedgerEntry(
     val amountCents: Long,
     val category: String,
     val note: String,
+    val pending: Boolean = false,
+    val source: String = "",
+    val merchant: String = "",
 )
 
 data class PeriodRecord(
@@ -172,6 +175,9 @@ object WorkbenchStore {
                 amountCents = o.optLong("amountCents"),
                 category = o.optString("category"),
                 note = o.optString("note"),
+                pending = o.optBoolean("pending", false),
+                source = o.optString("source"),
+                merchant = o.optString("merchant"),
             )
         }
         val periods = root.optJSONArray("periods").objects().mapNotNull { o ->
@@ -249,6 +255,9 @@ object WorkbenchStore {
                     put("amountCents", entry.amountCents)
                     put("category", entry.category)
                     put("note", entry.note)
+                    put("pending", entry.pending)
+                    put("source", entry.source)
+                    put("merchant", entry.merchant)
                 })
             }
         })

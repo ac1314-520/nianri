@@ -47,6 +47,7 @@ import com.nianri.app.ui.AppFont
 import com.nianri.app.ui.DetailView
 import com.nianri.app.ui.EditorView
 import com.nianri.app.ui.HomeView
+import com.nianri.app.ui.LedgerImportKind
 import com.nianri.app.ui.ProgressDialogHandle
 import com.nianri.app.ui.RecordsTab
 import com.nianri.app.ui.BottomNavView
@@ -93,6 +94,7 @@ class MainActivity : Activity() {
     private var editorOriginalId: String? = null
     private var photoPickerCallback: ((Uri?) -> Unit)? = null
     private var audioPickerCallback: ((Uri?) -> Unit)? = null
+    private var ledgerPickerCallback: ((Uri?) -> Unit)? = null
     private var refreshOnResume = false
     private var checkingUpdates = false
     private var downloadingUpdate = false
@@ -705,6 +707,46 @@ class MainActivity : Activity() {
         showNotice("这台设备没有可用的文件选择器")
     }
 
+    fun launchLedgerImport(kind: LedgerImportKind, onResult: (Uri?) -> Unit) {
+        ledgerPickerCallback = { uri ->
+            if (uri != null) showNotice("已选择${kind.label}文件")
+            onResult(uri)
+        }
+        val candidates = listOf(
+            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(
+                    Intent.EXTRA_MIME_TYPES,
+                    arrayOf(
+                        "text/*",
+                        "text/csv",
+                        "text/comma-separated-values",
+                        "application/csv",
+                        "application/vnd.ms-excel",
+                        "application/octet-stream",
+                    ),
+                )
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            },
+            Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            },
+        )
+        for (intent in candidates) {
+            try {
+                startActivityForResult(intent, REQUEST_LEDGER_IMPORT)
+                return
+            } catch (_: ActivityNotFoundException) {
+                // Try the next picker.
+            }
+        }
+        ledgerPickerCallback = null
+        showNotice("这台设备没有可用的文件选择器")
+    }
+
     @Deprecated("Activity result API is used to stay dependency-free")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -716,6 +758,11 @@ class MainActivity : Activity() {
         if (requestCode == REQUEST_AUDIO) {
             val callback = audioPickerCallback
             audioPickerCallback = null
+            callback?.invoke(if (resultCode == RESULT_OK) data?.data else null)
+        }
+        if (requestCode == REQUEST_LEDGER_IMPORT) {
+            val callback = ledgerPickerCallback
+            ledgerPickerCallback = null
             callback?.invoke(if (resultCode == RESULT_OK) data?.data else null)
         }
     }
@@ -1193,6 +1240,7 @@ class MainActivity : Activity() {
         finalizePendingSwipeDelete()
         photoPickerCallback = null
         audioPickerCallback = null
+        ledgerPickerCallback = null
         MusicPlayer.release()
         super.onDestroy()
     }
@@ -1203,5 +1251,6 @@ class MainActivity : Activity() {
         private const val REQUEST_NOTIFICATION_PERMISSION = 4202
         private const val REQUEST_AUDIO = 4203
         private const val REQUEST_LOCATION = 4205
+        private const val REQUEST_LEDGER_IMPORT = 4206
     }
 }

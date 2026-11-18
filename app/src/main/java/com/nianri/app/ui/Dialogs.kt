@@ -72,7 +72,7 @@ data class ProgressDialogHandle(
     }
 }
 
-private fun baseDialog(context: Context, maxWidthDp: Int = 420): Dialog {
+internal fun baseDialog(context: Context, maxWidthDp: Int = 420): Dialog {
     return Dialog(context).apply {
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         window?.apply {
@@ -90,7 +90,7 @@ private fun baseDialog(context: Context, maxWidthDp: Int = 420): Dialog {
     }
 }
 
-private fun dialogCard(context: Context): LinearLayout {
+internal fun dialogCard(context: Context): LinearLayout {
     return LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(context.dp(24), context.dp(24), context.dp(24), context.dp(20))
@@ -99,17 +99,17 @@ private fun dialogCard(context: Context): LinearLayout {
     }
 }
 
-private fun dialogTitle(context: Context, text: String): TextView =
+internal fun dialogTitle(context: Context, text: String): TextView =
     newText(context, text, 23f, AppColors.ink, AppFont.serif).apply {
         setLineSpacing(context.dpf(2f), 1f)
     }
 
-private fun dialogMessage(context: Context, text: String): TextView =
+internal fun dialogMessage(context: Context, text: String): TextView =
     newText(context, text, 13.5f, AppColors.inkSoft, AppFont.sans).apply {
         setLineSpacing(context.dpf(4.5f), 1f)
     }
 
-private fun dialogButton(
+internal fun dialogButton(
     context: Context,
     label: String,
     filled: Boolean,
@@ -159,7 +159,7 @@ private fun dialogButton(
     }
 }
 
-private fun buttonRow(context: Context, vararg views: View): LinearLayout {
+internal fun buttonRow(context: Context, vararg views: View): LinearLayout {
     return LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.END or Gravity.CENTER_VERTICAL

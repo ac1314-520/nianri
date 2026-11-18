@@ -40,6 +40,8 @@ class PhotoArtView @JvmOverloads constructor(
     private var scrimEnabled = true
     private var topScrimEnabled = false
     private var fitWideImages = false
+    private var focusX = 0.5f
+    private var focusY = 0.5f
     private var backdrop: Bitmap? = null
     private var clipPath = Path()
     private var bounds = RectF()
@@ -62,6 +64,15 @@ class PhotoArtView @JvmOverloads constructor(
         loadToken++
         invalidate()
         requestLoad()
+    }
+
+    fun setPhotoFocus(x: Float, y: Float) {
+        val nx = x.coerceIn(0f, 1f)
+        val ny = y.coerceIn(0f, 1f)
+        if (nx == focusX && ny == focusY) return
+        focusX = nx
+        focusY = ny
+        invalidate()
     }
 
     fun setAccentColor(index: Int) {
@@ -240,8 +251,8 @@ class PhotoArtView @JvmOverloads constructor(
         val scale = max(width / imageWidth.toFloat(), height / imageHeight.toFloat())
         val drawW = imageWidth * scale
         val drawH = imageHeight * scale
-        val left = (width - drawW) / 2f
-        val top = (height - drawH) / 2f
+        val left = (width - drawW) * focusX
+        val top = (height - drawH) * focusY
         val save = canvas.save()
         canvas.translate(left, top)
         canvas.scale(scale, scale)
@@ -311,8 +322,8 @@ class PhotoArtView @JvmOverloads constructor(
         val scale = max(width / image.width.toFloat(), height / image.height.toFloat())
         val drawW = image.width * scale
         val drawH = image.height * scale
-        val left = (width - drawW) / 2f
-        val top = (height - drawH) / 2f
+        val left = (width - drawW) * focusX
+        val top = (height - drawH) * focusY
         canvas.drawBitmap(
             image,
             null,

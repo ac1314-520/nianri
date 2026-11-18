@@ -129,6 +129,7 @@ class DetailView(
             setTopScrimEnabled(true)
             setFitWideImages(true)
             setImageName(event.imagePath)
+            setPhotoFocus(event.photoFocusX, event.photoFocusY)
         }
         cover.addView(art, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,

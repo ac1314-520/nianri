@@ -1,8 +1,8 @@
 {
-  "versionCode": 35,
-  "versionName": "2.26.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.26.0.apk",
-  "sha256": "16478f0598ac6ed7be54931a3ffd6273994d38b834962c45aab1668bf9401d54",
-  "notes": "• hero 与列表统一拖拽排序\n• 拖到第一张自动成为 hero\n• 移除右下角悬浮加号\n• 底部导航滑动指示器",
-  "publishedAt": "2026-11-09"
+  "versionCode": 37,
+  "versionName": "2.28.0",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.28.0.apk",
+  "sha256": "1b8d779b431b029270e6915a839debb509927ac3397807aaa5c5e181ea80e6ae",
+  "notes": "• 封面照片可拖动/缩放调整取景位置\n• 首页、详情、编辑预览共用焦点\n• 旧照片默认居中，显示不变\n• 记账快捷模板、规则分类、待确认\n• 支付宝/微信账单与银行流水导入",
+  "publishedAt": "2026-11-18"
 }

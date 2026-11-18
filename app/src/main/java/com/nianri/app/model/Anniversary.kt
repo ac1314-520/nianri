@@ -17,6 +17,8 @@ data class Anniversary(
     val recurring: Boolean = true,
     val note: String = "",
     val imagePath: String? = null,
+    val photoFocusX: Float = 0.5f,
+    val photoFocusY: Float = 0.5f,
     val musicPath: String? = null,
     val musicTitle: String? = null,
     val accentIndex: Int = 0,
@@ -73,6 +75,8 @@ data class Anniversary(
         put("recurring", recurring)
         put("note", note)
         put("imagePath", imagePath ?: JSONObject.NULL)
+        put("photoFocusX", photoFocusX)
+        put("photoFocusY", photoFocusY)
         put("musicPath", musicPath ?: JSONObject.NULL)
         put("musicTitle", musicTitle ?: JSONObject.NULL)
         put("accentIndex", accentIndex)
@@ -104,6 +108,8 @@ data class Anniversary(
                     imagePath = json.optString("imagePath").takeIf {
                         it.isNotBlank() && it != "null"
                     },
+                    photoFocusX = json.optDouble("photoFocusX", 0.5).toFloat().coerceIn(0f, 1f),
+                    photoFocusY = json.optDouble("photoFocusY", 0.5).toFloat().coerceIn(0f, 1f),
                     musicPath = json.optString("musicPath").takeIf {
                         it.isNotBlank() && it != "null"
                     },

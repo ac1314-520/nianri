@@ -69,6 +69,8 @@ class EditorView(
         PhotoStore.exists(host, it)
     }
     private val originalPhotoName: String? = selectedPhotoName
+    private var photoFocusX = original?.photoFocusX ?: 0.5f
+    private var photoFocusY = original?.photoFocusY ?: 0.5f
     private var selectedMusicName: String? = original?.musicPath?.takeIf {
         MusicStore.exists(host, it)
     }
@@ -512,6 +514,7 @@ class EditorView(
             setAccentColor(accentIndex)
             setFitWideImages(true)
             setImageName(selectedPhotoName)
+            setPhotoFocus(photoFocusX, photoFocusY)
             setScrimEnabled(true)
         }
         picker.addView(photoArt, FrameLayout.LayoutParams(
@@ -574,6 +577,30 @@ class EditorView(
             leftMargin = host.dp(15)
             bottomMargin = host.dp(15)
         })
+        val adjust = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(host.dp(11), host.dp(7), host.dp(12), host.dp(7))
+            background = roundedDrawable(host, 0xA6000000.toInt(), 16f, 0.8f, 0x33FFF9EF)
+            setOnClickListener {
+                selectedPhotoName?.let { name -> openPhotoFocus(name) }
+            }
+            addView(ImageView(host).apply {
+                setImageResource(R.drawable.ic_image)
+                setColorFilter(AppColors.cream)
+            }, LinearLayout.LayoutParams(host.dp(14), host.dp(14)))
+            addView(newText(host, "调整封面", 10.5f, AppColors.cream, AppFont.sansMedium).apply {
+                setPadding(host.dp(6), 0, 0, 0)
+            })
+        }
+        photoControls.addView(adjust, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.END,
+        ).apply {
+            rightMargin = host.dp(15)
+            bottomMargin = host.dp(15)
+        })
         val remove = FrameLayout(host).apply {
             isClickable = true
             isFocusable = true
@@ -625,6 +652,7 @@ class EditorView(
         photoControls.visibility = if (hasPhoto && !importingPhoto) View.VISIBLE else View.GONE
         photoBusy.visibility = if (importingPhoto) View.VISIBLE else View.GONE
         photoArt.setImageName(selectedPhotoName)
+        photoArt.setPhotoFocus(photoFocusX, photoFocusY)
     }
 
     private fun openPhotoPicker() {
@@ -657,6 +685,24 @@ class EditorView(
                 PhotoStore.delete(host, previous)
             }
             selectedPhotoName = name
+            photoFocusX = 0.5f
+            photoFocusY = 0.5f
+            updatePhotoUi()
+            photoArt.setAccentColor(accentIndex)
+            showPhotoFocusDialog(host, name, photoFocusX, photoFocusY) { x, y ->
+                photoFocusX = x
+                photoFocusY = y
+                updatePhotoUi()
+                photoArt.setAccentColor(accentIndex)
+            }
+        }
+    }
+
+    private fun openPhotoFocus(name: String) {
+        if (importingPhoto) return
+        showPhotoFocusDialog(host, name, photoFocusX, photoFocusY) { x, y ->
+            photoFocusX = x
+            photoFocusY = y
             updatePhotoUi()
             photoArt.setAccentColor(accentIndex)
         }
@@ -1024,6 +1070,8 @@ class EditorView(
             recurring = recurring,
             note = noteInput.text.toString().trim(),
             imagePath = selectedPhotoName,
+            photoFocusX = photoFocusX,
+            photoFocusY = photoFocusY,
             musicPath = selectedMusicName,
             musicTitle = selectedMusicTitle,
             lunar = lunarMode,
@@ -1088,6 +1136,8 @@ class EditorView(
             lunarLeap != original.lunarLeap ||
             recurring != original.recurring ||
             selectedPhotoName != originalPhotoName ||
+            photoFocusX != (original?.photoFocusX ?: 0.5f) ||
+            photoFocusY != (original?.photoFocusY ?: 0.5f) ||
             selectedMusicName != originalMusicName ||
             accentIndex != original.accentIndex ||
             reminderEnabled != original.reminderEnabled ||

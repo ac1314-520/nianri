@@ -1281,7 +1281,8 @@ class RecordsView(
     }
 
     private fun buildMonthLedger(snapshot: WorkbenchSnapshot) {
-        val entries = snapshot.ledger.inMonth(ledgerMonth).sortedByDescending { it.epochDay }
+        val allEntries = snapshot.ledger.inMonth(ledgerMonth)
+        val entries = allEntries.filter { !it.pending }.sortedByDescending { it.epochDay }
         val expense = entries.expenseTotal()
         val income = entries.incomeTotal()
         content.addView(ledgerSummaryCard("${ledgerMonth.monthValue} 月支出", expense, income, entries.size),
@@ -1290,6 +1291,12 @@ class RecordsView(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = host.dp(10) })
         content.addView(ledgerStatsCard(snapshot, entries), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
+        content.addView(buildLedgerToolsCard(host, snapshot) {
+            render(preserveScroll = true)
+        }, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = host.dp(10) })
@@ -1336,7 +1343,9 @@ class RecordsView(
     }
 
     private fun buildYearLedger(snapshot: WorkbenchSnapshot) {
-        val entries = snapshot.ledger.inYear(ledgerYear).sortedByDescending { it.epochDay }
+        val entries = snapshot.ledger.inYear(ledgerYear)
+            .filter { !it.pending }
+            .sortedByDescending { it.epochDay }
         val expense = entries.expenseTotal()
         val income = entries.incomeTotal()
         content.addView(ledgerSummaryCard("${ledgerYear} 年支出", expense, income, entries.size),
@@ -1344,6 +1353,12 @@ class RecordsView(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = host.dp(10) })
+        content.addView(buildLedgerToolsCard(host, snapshot) {
+            render(preserveScroll = true)
+        }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = host.dp(10) })
 
         val monthValues = (1..12).map { month ->
             entries.filter { LocalDate.ofEpochDay(it.epochDay).monthValue == month }.expenseTotal()
@@ -1400,8 +1415,8 @@ class RecordsView(
         val budget = ledgerBudgetCents()
         val remaining = (budget - expense).coerceAtLeast(0)
         val days = entries.map { it.epochDay }.distinct().size
-        val loan = snapshot.ledger.filter { it.income && it.category == "贷款" }.sumOf { it.amountCents }
-        val repaid = snapshot.ledger.filter { !it.income && it.category == "还贷" }.sumOf { it.amountCents }
+        val loan = snapshot.ledger.filter { !it.pending && it.income && it.category == "贷款" }.sumOf { it.amountCents }
+        val repaid = snapshot.ledger.filter { !it.pending && !it.income && it.category == "还贷" }.sumOf { it.amountCents }
         val debt = (loan - repaid).coerceAtLeast(0)
         val row = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1451,7 +1466,9 @@ class RecordsView(
             formatMoney(debt),
             "贷款余额",
         ) {
-            val loans = snapshot.ledger.filter { it.category == "贷款" || it.category == "还贷" }
+            val loans = snapshot.ledger.filter {
+                !it.pending && (it.category == "贷款" || it.category == "还贷")
+            }
                 .sortedByDescending { it.epochDay }
             val text = if (loans.isEmpty()) {
                 "还没有贷款或还贷记录。在「记一笔」里选收入 → 贷款，或支出 → 还贷。"
@@ -1710,6 +1727,9 @@ class RecordsView(
                 amountCents = result.amountCents,
                 category = result.category,
                 note = result.note,
+                pending = false,
+                source = entry?.source.orEmpty(),
+                merchant = entry?.merchant.orEmpty(),
             )
             WorkbenchStore.update(host) { data ->
                 data.copy(ledger = (data.ledger.filterNot { it.id == saved.id } + saved)

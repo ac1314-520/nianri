@@ -452,7 +452,7 @@ class WorkbenchView(
         val today = LocalDate.now().toEpochDay()
         val monthStart = LocalDate.now().withDayOfMonth(1).toEpochDay()
         val expense = snapshot.ledger
-            .filter { !it.income && it.epochDay >= monthStart }
+            .filter { !it.pending && !it.income && it.epochDay >= monthStart }
             .sumOf { it.amountCents }
         card.addView(recordRow(
             host,

@@ -224,6 +224,7 @@ class HomeView(
             setTopScrimEnabled(true)
             setFitWideImages(true)
             setImageName(event.imagePath)
+            setPhotoFocus(event.photoFocusX, event.photoFocusY)
         }
         card.addView(art, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -649,6 +650,7 @@ class HomeView(
                 setScrimEnabled(false)
                 setAccentColors(accent.color, accent.deep)
                 setImageName(event.imagePath)
+            setPhotoFocus(event.photoFocusX, event.photoFocusY)
             }
         } else {
             FrameLayout(host).apply {

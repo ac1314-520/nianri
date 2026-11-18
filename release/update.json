@@ -1,8 +1,8 @@
 {
-  "versionCode": 37,
-  "versionName": "2.28.0",
-  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.28.0.apk",
-  "sha256": "1b8d779b431b029270e6915a839debb509927ac3397807aaa5c5e181ea80e6ae",
-  "notes": "• 封面照片可拖动/缩放调整取景位置\n• 首页、详情、编辑预览共用焦点\n• 旧照片默认居中，显示不变\n• 记账快捷模板、规则分类、待确认\n• 支付宝/微信账单与银行流水导入",
+  "versionCode": 38,
+  "versionName": "2.28.1",
+  "apkUrl": "https://raw.githubusercontent.com/ac1314-520/nianri/refs/heads/main/release/NianRi-Android-2.28.1.apk",
+  "sha256": "1174f4363702ba0de2a3c3cc2f62ae9b2d1bfc042bed69ce89d4ff55767feedd",
+  "notes": "• 修复封面焦点保存后回到默认位置\n• 裁剪确认直接保存当前焦点\n• 修复 iOS 保存后编辑照片空白\n• 保留记账增强与封面裁剪",
   "publishedAt": "2026-11-18"
 }

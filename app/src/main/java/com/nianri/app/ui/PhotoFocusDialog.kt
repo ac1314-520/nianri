@@ -24,8 +24,9 @@ import kotlin.math.max
 class PhotoFocusView(context: Context) : View(context) {
 
     private var bitmap: Bitmap? = null
-    private var matrix = Matrix()
-    private val inverse = Matrix()
+    private var focusX = 0.5f
+    private var focusY = 0.5f
+    private var zoom = 1f
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -34,13 +35,9 @@ class PhotoFocusView(context: Context) : View(context) {
     }
     private var lastX = 0f
     private var lastY = 0f
-    private var initialFocusX = 0.5f
-    private var initialFocusY = 0.5f
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            val image = bitmap ?: return false
-            matrix.postScale(detector.scaleFactor, detector.scaleFactor, detector.focusX, detector.focusY)
-            constrain(image)
+            zoom = (zoom * detector.scaleFactor).coerceIn(1f, 4f)
             invalidate()
             return true
         }
@@ -48,73 +45,43 @@ class PhotoFocusView(context: Context) : View(context) {
 
     fun setPhoto(bitmap: Bitmap, focusX: Float, focusY: Float) {
         this.bitmap = bitmap
-        initialFocusX = focusX.coerceIn(0f, 1f)
-        initialFocusY = focusY.coerceIn(0f, 1f)
-        resetMatrix()
+        this.focusX = focusX.coerceIn(0f, 1f)
+        this.focusY = focusY.coerceIn(0f, 1f)
+        zoom = 1f
         invalidate()
     }
 
     fun resetToCenter() {
-        initialFocusX = 0.5f
-        initialFocusY = 0.5f
-        resetMatrix()
+        focusX = 0.5f
+        focusY = 0.5f
+        zoom = 1f
         invalidate()
     }
 
-    fun focus(): Pair<Float, Float> {
-        val image = bitmap ?: return 0.5f to 0.5f
-        matrix.invert(inverse)
-        val point = floatArrayOf(width / 2f, height / 2f)
-        inverse.mapPoints(point)
-        return (point[0] / image.width).coerceIn(0f, 1f) to
-            (point[1] / image.height).coerceIn(0f, 1f)
-    }
+    fun focus(): Pair<Float, Float> = focusX to focusY
 
-    private fun resetMatrix() {
-        val image = bitmap ?: return
-        if (width == 0 || height == 0) return
-        val scale = max(width / image.width.toFloat(), height / image.height.toFloat())
-        matrix.reset()
-        matrix.setScale(scale, scale)
-        matrix.postTranslate(
-            (width - image.width * scale) * initialFocusX,
-            (height - image.height * scale) * initialFocusY,
-        )
-        constrain(image)
-    }
-
-    private fun constrain(image: Bitmap) {
-        val rect = RectF(0f, 0f, image.width.toFloat(), image.height.toFloat())
-        matrix.mapRect(rect)
-        var dx = 0f
-        var dy = 0f
-        if (rect.width() < width) {
-            val up = width / rect.width()
-            matrix.postScale(up, up, width / 2f, height / 2f)
-            matrix.mapRect(rect)
-        }
-        if (rect.height() < height) {
-            val up = height / rect.height()
-            matrix.postScale(up, up, width / 2f, height / 2f)
-            matrix.mapRect(rect)
-        }
-        if (rect.left > 0f) dx -= rect.left
-        if (rect.right < width) dx += width - rect.right
-        if (rect.top > 0f) dy -= rect.top
-        if (rect.bottom < height) dy += height - rect.bottom
-        if (dx != 0f || dy != 0f) matrix.postTranslate(dx, dy)
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        resetMatrix()
+    private fun drawSize(): Pair<Float, Float> {
+        val image = bitmap ?: return 0f to 0f
+        if (width == 0 || height == 0) return 0f to 0f
+        val cover = max(width / image.width.toFloat(), height / image.height.toFloat())
+        val scale = cover * zoom
+        return image.width * scale to image.height * scale
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         canvas.drawColor(Color.rgb(24, 20, 18))
         val image = bitmap ?: return
-        canvas.drawBitmap(image, matrix, paint)
+        val (drawW, drawH) = drawSize()
+        if (drawW <= 0f || drawH <= 0f) return
+        val left = (width - drawW) * focusX
+        val top = (height - drawH) * focusY
+        canvas.drawBitmap(
+            image,
+            null,
+            RectF(left, top, left + drawW, top + drawH),
+            paint,
+        )
         canvas.drawRect(
             border.strokeWidth / 2f,
             border.strokeWidth / 2f,
@@ -125,7 +92,7 @@ class PhotoFocusView(context: Context) : View(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (bitmap == null) return false
+        val image = bitmap ?: return false
         scaleDetector.onTouchEvent(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -135,12 +102,17 @@ class PhotoFocusView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_MOVE -> {
                 if (!scaleDetector.isInProgress) {
-                    val dx = event.x - lastX
-                    val dy = event.y - lastY
+                    val (drawW, drawH) = drawSize()
+                    val overflowX = (drawW - width).coerceAtLeast(1f)
+                    val overflowY = (drawH - height).coerceAtLeast(1f)
+                    if (drawW > width) {
+                        focusX = (focusX - (event.x - lastX) / overflowX).coerceIn(0f, 1f)
+                    }
+                    if (drawH > height) {
+                        focusY = (focusY - (event.y - lastY) / overflowY).coerceIn(0f, 1f)
+                    }
                     lastX = event.x
                     lastY = event.y
-                    matrix.postTranslate(dx, dy)
-                    constrain(bitmap!!)
                     invalidate()
                 }
             }

@@ -1,6 +1,12 @@
-# 封面照片焦点 · 2.28.0
+# 封面照片焦点 · 2.28.1
 
 这一版解决竖屏照片作为纪念日封面时被自动居中裁切的问题。
+
+## 2.28.1 修复
+
+- 修复调整后保存仍回到原位置：确认时直接保存当前焦点坐标
+- 修复 iOS 保存后再次编辑照片空白
+- Android 裁剪预览改为直接按焦点绘制，不再依赖临时矩阵
 
 ## 做法
 
@@ -35,7 +41,7 @@ photoFocusY = 0.00 ~ 1.00
 Android 本地包：
 
 ```text
-E:\deepseek工作区\nianri\release\NianRi-Android-2.28.0-local.apk
+E:\deepseek工作区\nianri\release\NianRi-Android-2.28.1-local.apk
 ```
 
 iOS：
